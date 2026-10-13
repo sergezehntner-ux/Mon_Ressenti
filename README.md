@@ -30,3 +30,7 @@ Les données sont enregistrées dans le navigateur **sur l'appareil utilisé** :
 ## Limites
 
 Il ne s'agit pas d'un dispositif médical. Les analyses décrivent des déclarations personnelles, sans diagnostic ni causalité. Aucun rappel ou synchronisation entre appareils dans cette version.
+
+
+## v0.2.8 — Rapport imprimable
+Dans Analyses, « Préparer le rapport PDF » ouvre une synthèse locale de deux pages A4 paysage. Le navigateur permet de choisir Imprimer > Enregistrer au format PDF. Les champs d’identité facultatifs sont conservés uniquement dans le stockage local du navigateur. Les calculs portent sur les observations présentes, sans données simulées.
