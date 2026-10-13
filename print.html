@@ -1,0 +1,23 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mon Ressenti · Impression</title></head><body><p id="status">Chargement du rapport à imprimer…</p><script>
+(function(){
+ const key=decodeURIComponent(location.hash.slice(1));
+ let html='';
+ try{html=localStorage.getItem(key)||'';localStorage.removeItem(key)}catch(e){}
+ if(!html){document.getElementById('status').textContent='Rapport indisponible. Reviens à Mon Ressenti et appuie sur Imprimer.';return;}
+ // Ne pas exécuter les scripts du document copié. Le rapport reste local.
+ const doc=new DOMParser().parseFromString(html,'text/html');
+ doc.querySelectorAll('script').forEach(s=>s.remove());
+ doc.querySelectorAll('link[rel="stylesheet"]').forEach(s=>s.remove());
+ doc.querySelectorAll('button').forEach(b=>b.remove());
+ const toolbar=doc.querySelector('.toolbar');if(toolbar)toolbar.remove();
+ document.head.innerHTML=doc.head.innerHTML;
+ document.body.innerHTML=doc.body.innerHTML;
+ const bar=document.createElement('div');bar.id='mr-print-controls';
+ bar.style.cssText='position:sticky;top:0;z-index:99999;background:#174d5b;color:white;padding:10px;display:flex;gap:10px;align-items:center;font:15px Arial,sans-serif';
+ const btn=document.createElement('button');btn.textContent='Imprimer';btn.style.cssText='padding:10px 18px;border:0;border-radius:6px;background:#d8f1ea;font-weight:bold';btn.onclick=()=>window.print();
+ const tip=document.createElement('span');tip.textContent='Si rien ne se passe, ouvre le menu ⋮ d’Edge et choisis Imprimer/PDF.';
+ bar.append(btn,tip);document.body.prepend(bar);
+ const css=document.createElement('style');css.textContent='@media print{#mr-print-controls{display:none!important}}';document.head.append(css);
+ window.addEventListener('load',()=>setTimeout(()=>{try{window.print()}catch(e){}},500),{once:true});
+})();
+</script></body></html>
