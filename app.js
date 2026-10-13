@@ -25,52 +25,58 @@ function stats(d){
  <p class="mr-analysis-disclaimer">Une association statistique ne démontre pas une relation de cause à effet.</p></div>`;
 }
 function chips(name,opts,values=[]){return `<div class="chips" data-chips="${name}">${opts.map(o=>`<button type="button" class="chip ${values.includes(o)?'sel':''}" data-val="${esc(o)}" aria-pressed="${values.includes(o)}">${esc(o)}</button>`).join('')}</div>`}function scale(score){return `<div class="scale" id="scale"><button type="button" data-score="" class="${!Number.isFinite(score)?'sel':''}" aria-pressed="${!Number.isFinite(score)}" title="Non renseigné">—</button>${Array.from({length:11},(_,i)=>`<button type="button" data-score="${i}" class="${score===i?'sel':''}" aria-pressed="${score===i}">${i}</button>`).join('')}</div>`}function form(x){let type=x?.type||window.nextType||'pain';window.nextType=null;const types=[['pain','Ressenti / douleur'],['daily','Bilan quotidien / capacités'],...[...new Set(formData.map(r=>r.type).filter(t=>t!=='pain'&&t!=='daily'))].sort((a,b)=>a.localeCompare(b,'fr')).map(t=>[t,t])];if(!types.some(([v])=>v===type))types.push([type,type]);const locations=[...new Set(formData.map(r=>String(r.location||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'fr'));const custom=type!=='pain'&&type!=='daily';const painLike=type!=='daily';return heading(x?'Modifier une entrée':'Nouvelle saisie','Rapide d’abord, détails seulement si tu le souhaites.')+`<form id="entry" class="card"><div class="field"><label for="type">Type d’observation</label><select id="type">${types.map(([v,l])=>`<option value="${esc(v)}" ${v===type?'selected':''}>${esc(l)}</option>`).join('')}<option value="__other__">Autre…</option></select><input id="type-other" type="text" maxlength="100" placeholder="Nouveau type d’observation" hidden></div><div class="field"><label for="when">${painLike?'Date et heure':'Date'}</label><input id="when" type="${painLike?'datetime-local':'date'}" required value="${esc(x?.when||(painLike?nowLocal():dateLocal()))}"></div><div class="field"><label>${painLike?'Intensité du ressenti':'Capacité fonctionnelle'} : <strong id="scorelabel">${x?.score===null?'non renseigné':(x?.score??5)+'/10'}</strong></label>${x?.score===null?'<p class="muted">Score non renseigné dans MMP. Choisis une valeur seulement si tu souhaites le compléter.</p>':''}${scale(x?.score===null?null:x?.score??5)}</div>${painLike?`<div class="field"><label for="location">Localisation (facultatif)</label><select id="location"><option value="">Sans localisation</option>${locations.map(l=>`<option value="${esc(l)}" ${l===(x?.location||'')?'selected':''}>${esc(l)}</option>`).join('')}<option value="__other__">Autre…</option></select><input id="location-other" type="text" maxlength="120" placeholder="Nouvelle localisation" hidden></div><details><summary>Descriptions et facteurs (facultatif)</summary><div class="field"><label>Caractéristiques</label>${chips('features',intensity,x?.features)}</div><div class="field"><label>Facteurs aggravants</label>${chips('aggravating',aggrav,x?.aggravating)}</div><div class="field"><label>Facteurs soulageants</label>${chips('relieving',relief,x?.relieving)}</div></details>`:`<div class="field"><label>Activités significatives</label>${chips('tags',activities,x?.tags)}</div>`}<div class="field"><label for="note">Remarques (facultatif)</label><textarea id="note" placeholder="Ce que je souhaite retenir…">${esc(x?.note||'')}</textarea></div><div class="actions"><button class="button" type="submit">Enregistrer</button><button class="button secondary" type="button" id="cancel-edit">Annuler</button></div></form>`}
-function settings(){return heading('Réglages','Sauvegardes et importations.')+`<div class="card"><h2>Sauvegarder et restaurer</h2><p class="muted">Sauvegarde complète JSON. La restauration fusionne par identifiant.</p><div class="actions"><button class="button" id="backup">Sauvegarder JSON</button><button class="button secondary" id="csv">Exporter CSV</button><label class="button secondary" for="restore">Importer JSON</label><input type="file" id="restore" accept=".json,application/json" hidden></div></div><div class="card"><h2>Migration MMP · transfert définitif</h2><p>Importer le fichier JSON privé préparé à partir du rapport complet du 13.10.2026. Aucun document n’est envoyé à GitHub.</p><label class="button" for="mmpfile">Choisir le fichier MMP JSON</label><input type="file" id="mmpfile" accept=".json,application/json" hidden><div id="mmp-preview" class="footnote"></div><p class="footnote">Les heures MMP disponibles sont conservées. Les notes des bilans non encore extraites du PDF restent inconnues. Les champs originaux sont conservés.</p><button class="button secondary" id="mmpclear">Effacer uniquement les imports MMP</button></div><div class="card"><h2>À propos</h2><p>Mon Ressenti · Compagnon SZ · v0.2.25</p><p class="muted">Journal personnel, pas une application médicale. Stockage local.</p></div>`}
+function settings(){return heading('Réglages','Sauvegardes et importations.')+`<div class="card"><h2>Sauvegarder et restaurer</h2><p class="muted">Sauvegarde complète JSON. La restauration fusionne par identifiant.</p><div class="actions"><button class="button" id="backup">Sauvegarder JSON</button><button class="button secondary" id="csv">Exporter CSV</button><label class="button secondary" for="restore">Importer JSON</label><input type="file" id="restore" accept=".json,application/json" hidden></div></div><div class="card"><h2>Migration MMP · transfert définitif</h2><p>Importer le fichier JSON privé préparé à partir du rapport complet du 13.10.2026. Aucun document n’est envoyé à GitHub.</p><label class="button" for="mmpfile">Choisir le fichier MMP JSON</label><input type="file" id="mmpfile" accept=".json,application/json" hidden><div id="mmp-preview" class="footnote"></div><p class="footnote">Les heures MMP disponibles sont conservées. Les notes des bilans non encore extraites du PDF restent inconnues. Les champs originaux sont conservés.</p><button class="button secondary" id="mmpclear">Effacer uniquement les imports MMP</button></div><div class="card"><h2>À propos</h2><p>Mon Ressenti · Compagnon SZ · v0.2.26</p><p class="muted">Journal personnel, pas une application médicale. Stockage local.</p></div>`}
 function download(filename,content,mime){let a=document.createElement('a'),url=URL.createObjectURL(new Blob([content],{type:mime}));a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}function csvEscape(x){return '"'+String(x??'').replace(/"/g,'""')+'"'}
 
-// Rapport v0.2.25 : l'application reste en mémoire, avec ses événements et sa base locale.
+// Rapport v0.2.26 : l'application reste en mémoire, avec ses événements et sa base locale.
 let mrReportSaved=null;
 window.MonRessentiShowReport=function(html){
   if(mrReportSaved)return;
   const doc=new DOMParser().parseFromString(html,'text/html');
   const style=doc.querySelector('style');
-  const original=document.createDocumentFragment();
-  while(document.body.firstChild)original.appendChild(document.body.firstChild);
-  const appStyles=[...document.querySelectorAll('link[rel="stylesheet"]')].map(el=>({el,disabled:el.disabled}));
-  appStyles.forEach(x=>x.el.disabled=true);
+  const app=document.getElementById('app');
+  if(!app)return;
+  // Le document principal reste en place : aucun remplacement du body,
+  // aucune fenêtre, aucune navigation et aucune écriture en base.
   const reportStyle=document.createElement('style');
   reportStyle.textContent=style?style.textContent:'';
   document.head.appendChild(reportStyle);
+  const reportHost=document.createElement('div');
+  reportHost.id='mr-report-host';
+  while(doc.body.firstChild)reportHost.appendChild(doc.body.firstChild);
   const title=document.title;
-  mrReportSaved={original,reportStyle,title,appStyles};
-  while(doc.body.firstChild)document.body.appendChild(doc.body.firstChild);
-  document.title='Rapport des ressentis personnels · v0.2.25';
-  const print=document.getElementById('report-print');
-  // Imprimer le rapport affiché, dans la page actuelle :
-  // aucun about:blank, aucune fenêtre secondaire, aucun PDF intermédiaire.
-  // Impression directe dans le document courant, suivant Ma Santé :
-  // préparer le contenu, puis lancer l'impression après 100 ms.
-  // Aucune nouvelle fenêtre, aucun onglet Edge, aucun PDF intermédiaire.
-  if(print)print.addEventListener('click',event=>{
-    event.preventDefault();
-    setTimeout(()=>window.print(),100);
-  });
-  const close=document.getElementById('report-close');
+  const previousDisplay=app.style.display;
+  app.style.display='none';
+  document.body.appendChild(reportHost);
+  mrReportSaved={app,previousDisplay,reportHost,reportStyle,title};
+  document.title='Rapport des ressentis personnels · v0.2.26';
+  const print=reportHost.querySelector('#report-print');
+  if(print){
+    print.removeAttribute('onclick');
+    print.addEventListener('click',event=>{
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      // Appel synchrone pendant le geste utilisateur Android.
+      window.print();
+    });
+  }
+  const close=reportHost.querySelector('#report-close');
   if(close){
-    // Le HTML du rapport contient déjà un onclick. Sans le retirer, le clic
-    // déclenche deux retours successifs et le second navigue vers l’accueil.
     close.removeAttribute('onclick');
-    close.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();window.MonRessentiReturnToApp();});
+    close.addEventListener('click',event=>{
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      window.MonRessentiReturnToApp();
+    });
   }
   window.scrollTo(0,0);
 };
 window.MonRessentiReturnToApp=function(){
   const saved=mrReportSaved;
-  if(!saved){window.location.href='./index.html';return;}
-  document.body.replaceChildren();
-  document.body.appendChild(saved.original);
+  if(!saved)return;
+  saved.reportHost.remove();
   saved.reportStyle.remove();
-  (saved.appStyles||[]).forEach(x=>x.el.disabled=x.disabled);
+  saved.app.style.display=saved.previousDisplay;
   document.title=saved.title;
   mrReportSaved=null;
   window.scrollTo(0,0);
