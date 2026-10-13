@@ -38,3 +38,10 @@ header{height:60px;padding-top:6px;padding-bottom:6px}.logo{width:38px;height:38
 
 /* v0.2.4 : cartes directement au-dessus de la navigation */
 .dashboard-bottom{padding-bottom:0;bottom:calc(58px + env(safe-area-inset-bottom));}
+
+/* v0.2.5 : cartes au contact de la navigation et journal homogène */
+.home-screen{min-height:calc(100dvh - 105px - 58px - env(safe-area-inset-bottom));}
+.dashboard-bottom{position:fixed;left:0;right:0;bottom:calc(58px + env(safe-area-inset-bottom));margin:0;padding:0 12px 0;z-index:5;background:#edf4f3;}
+.home-screen{padding-bottom:100px;}
+.journal-card .home-entry-summary{font-size:.79rem;}
+@media(max-width:520px){.journal-card .home-entry-summary{font-size:.68rem;}}
