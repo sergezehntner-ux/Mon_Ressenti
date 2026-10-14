@@ -1,4 +1,4 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#184d5b"><meta name="description" content="Mon Ressenti — Compagnon SZ, journal personnel hors connexion"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon-192.png" type="image/png"><title>Mon Ressenti · Compagnon SZ</title><link rel="stylesheet" href="style.css?v=0.2.44"><style>
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#184d5b"><meta name="description" content="Mon Ressenti — Compagnon SZ, journal personnel hors connexion"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon-192.png" type="image/png"><title>Mon Ressenti · Compagnon SZ</title><link rel="stylesheet" href="style.css?v=0.2.45"><style>
 /* Analyses compactes : le rapport imprimable conserve ses propres styles */
 .mr-analysis-compact{display:flex;flex-direction:column;gap:clamp(7px,1.1vh,13px);height:calc(100dvh - 165px);min-height:0;overflow:hidden}
 .mr-analysis-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
@@ -25,7 +25,7 @@
 #entry.card{padding:12px 14px;margin-bottom:8px}#entry .field{margin-bottom:8px}#entry .field>label{font-size:13px}#entry .field>select,#entry .field>input{padding:7px 10px}#entry .scale{gap:3px}#entry .scale button{padding:6px 2px;min-height:31px}#entry .mr-factor-list{margin:4px 0}#entry textarea{min-height:44px;height:52px}#entry .actions{margin-top:8px}#entry .mr-factor-list>.mr-factor:last-child{padding:4px 8px}#entry .mr-factor .button{margin:5px 5px 3px 0;padding:7px 10px}#entry .mr-moment-row{padding:5px 0}#entry .mr-moment-header{padding:5px 0}#entry .mr-factor-list .mr-factor-body p{margin:3px 0}#entry .mr-factor-list>.mr-factor>summary{line-height:1.2}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
 
-/* v0.2.44 — saisie plus compacte, sans toucher aux rapports */
+/* v0.2.45 — saisie plus compacte, sans toucher aux rapports */
 #screen:has(#entry)>h1{display:inline-block;margin:0 0 8px;font-size:clamp(19px,2.6vh,27px)}
 #entry .mr-entry-top{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:9px;align-items:end}
 #entry .mr-entry-top .field{min-width:0;margin-bottom:6px}
@@ -36,14 +36,14 @@
 #entry .mr-score-field .scale button{min-width:0;padding:5px 0}
 #entry .mr-score-field .muted{display:none}
 @media(max-width:570px){#entry .mr-score-field{gap:5px}#entry .mr-score-field>label{font-size:11px}#entry .mr-score-field .scale{gap:2px}#entry .mr-score-field .scale button{font-size:12px}#entry .mr-entry-top{gap:6px}#entry .mr-entry-top .field>label{font-size:11px}}
-/* v0.2.44 — sous-titre sur la ligne du titre */
+/* v0.2.45 — sous-titre sur la ligne du titre */
 .mr-entry-heading{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 0 8px}
 .mr-entry-heading h1{margin:0;font-size:clamp(19px,2.6vh,27px);white-space:nowrap}
 .mr-entry-heading span{color:#61787d;font-size:clamp(10px,1.4vw,14px);text-align:right}
 @media(max-width:440px){.mr-entry-heading span{font-size:10px}}
-/* v0.2.44 — recherche Journal et gestion des facteurs */
+/* v0.2.45 — recherche Journal et gestion des facteurs */
 #journal-search{width:100%;margin:8px 0 14px;padding:11px;border:1px solid #c9dddd;border-radius:9px}
 #factor-group,#factor-source,#factor-action,#factor-target,#factor-new-name{width:100%;padding:9px;margin:4px 0 12px;border:1px solid #c9dddd;border-radius:8px;background:white}
 #factor-target-wrap[hidden]{display:none}
 .mr-effect-detail{margin:0 0 10px 24px;padding:10px 12px;border-left:3px solid #1b737b;background:#edf6f5;border-radius:6px}.mr-effect-detail[hidden]{display:none}.mr-effect-heading{font-weight:700;margin-bottom:7px}.mr-effect-detail label{display:block;margin:7px 0}.mr-effect-detail input,.mr-effect-detail select{width:100%;max-width:460px}
- .mr-med-quantity{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin:8px 0}.mr-med-quantity input,.mr-med-quantity select{width:100%;box-sizing:border-box}</style></head><body><div id="app"><header><div class="brand"><img class="logo" src="icon-192.png" alt="Icône Mon Ressenti"><div><strong>Mon Ressenti</strong><small>Compagnon SZ · v0.2.44</small></div></div><span class="local">● Local</span></header><main id="screen"></main><nav id="nav" aria-label="Navigation principale"><button data-page="home">⌂<span>Accueil</span></button><button data-page="new">＋<span>Saisir</span></button><button data-page="journal">▦<span>Journal</span></button><button data-page="stats">▥<span>Analyses</span></button><button data-page="settings">⚙<span>Réglages</span></button></nav></div><script src="report.js?v=0.2.44" defer></script><script src="app.js?v=0.2.44" defer></script></body></html>
+ .mr-med-quantity{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin:8px 0}.mr-med-quantity input,.mr-med-quantity select{width:100%;box-sizing:border-box}</style></head><body><div id="app"><header><div class="brand"><img class="logo" src="icon-192.png" alt="Icône Mon Ressenti"><div><strong>Mon Ressenti</strong><small>Compagnon SZ · v0.2.45</small></div></div><span class="local">● Local</span></header><main id="screen"></main><nav id="nav" aria-label="Navigation principale"><button data-page="home">⌂<span>Accueil</span></button><button data-page="new">＋<span>Saisir</span></button><button data-page="journal">▦<span>Journal</span></button><button data-page="stats">▥<span>Analyses</span></button><button data-page="settings">⚙<span>Réglages</span></button></nav></div><script src="report.js?v=0.2.45" defer></script><script src="app.js?v=0.2.45" defer></script></body></html>
