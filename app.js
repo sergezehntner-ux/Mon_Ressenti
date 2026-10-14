@@ -57,8 +57,20 @@ const MR_GROUPS={
 };
 
 const mrSort=arr=>[...new Set(arr.filter(Boolean))].sort((x,y)=>x.localeCompare(y,'fr',{sensitivity:'base'}));
+// Lecture seule des champs historiques MMP : leurs intitulés sont conservés tels quels.
+const MR_LEGACY_FIELDS={locations:['Endroit','Endroits'],symptoms:['Autres symptômes associés'],features:['Caractéristiques'],aggravating:['Facteurs Aggravants'],medications:['Médicaments'],interventions:['Interventions'],environment:['Environnements','Environnement']};
+function mrHistoricalValues(r,key){
+ const values=[];
+ const add=v=>{if(Array.isArray(v))v.forEach(add);else if(typeof v==='string'&&v.trim())values.push(v.trim())};
+ add(r[key]);
+ if(key==='locations')add(r.location);
+ const original=r.mmpOriginalFields||{};
+ for(const field of MR_LEGACY_FIELDS[key]||[]){const v=original[field];if(typeof v==='string')v.split(/[,;\n]+/).forEach(add);else add(v)}
+ return values;
+}
+
 function mrGroupHtml(key,selected=[]){
- const g=MR_GROUPS[key],used=mrSort(formData.flatMap(r=>Array.isArray(r[key])?r[key]:[]).concat(selected||[]));
+ const g=MR_GROUPS[key],used=mrSort(formData.flatMap(r=>mrHistoricalValues(r,key)).concat(selected||[]));
  const proposals=mrSort(g.options.filter(x=>!used.includes(x)));
  return `<details class="mr-factor" data-factor="${key}"><summary>${esc(g.title)} <small class="mr-count">${selected.length?'('+selected.length+')':''}</small></summary><div class="mr-factor-body"><div class="mr-factor-primary"><p class="muted">Déjà utilisés</p>${used.map(v=>mrChoice(v,selected)).join('')}<button type="button" class="button secondary mr-more">Autre…</button><button type="button" class="button secondary mr-close">Retour</button></div><div class="mr-factor-secondary" hidden><p class="muted">Autres propositions</p>${proposals.map(v=>mrChoice(v,selected)).join('')}<button type="button" class="button secondary mr-add">Autre…</button><button type="button" class="button secondary mr-back">Retour</button></div><div class="mr-factor-new" hidden><label>Nouvelle valeur <input class="mr-new-input" maxlength="120" placeholder="Nouvelle proposition"></label><button type="button" class="button mr-confirm">Ajouter</button><button type="button" class="button secondary mr-new-back">Retour</button></div></div></details>`;
 }
@@ -80,11 +92,11 @@ function mrWire(){
  const add=document.getElementById('mr-add-group');if(add)add.onclick=()=>{const n=prompt('Nom du nouveau groupe :')?.trim();if(!n)return;const container=document.getElementById('mr-custom-groups');if([...container.querySelectorAll('[data-custom]')].some(g=>g.dataset.custom.toLocaleLowerCase('fr')===n.toLocaleLowerCase('fr')))return alert('Ce groupe existe déjà.');container.insertAdjacentHTML('beforeend',mrCustomHtml(n));mrWire()};
 }
 
-function chips(name,opts,values=[]){return `<div class="chips" data-chips="${name}">${opts.map(o=>`<button type="button" class="chip ${values.includes(o)?'sel':''}" data-val="${esc(o)}" aria-pressed="${values.includes(o)}">${esc(o)}</button>`).join('')}</div>`}function scale(score){return `<div class="scale" id="scale">${Array.from({length:11},(_,i)=>`<button type="button" data-score="${i}" class="${score===i?'sel':''}" aria-pressed="${score===i}">${i}</button>`).join('')}</div>`}function form(x){let type=x?.type||window.nextType||'pain';window.nextType=null;const types=[['pain','Ressenti / douleur'],['daily','Bilan quotidien / capacités'],...[...new Set(formData.map(r=>r.type).filter(t=>t!=='pain'&&t!=='daily'))].sort((a,b)=>a.localeCompare(b,'fr')).map(t=>[t,t])];if(!types.some(([v])=>v===type))types.push([type,type]);const locations=mrSort([...MR_LOCATIONS,...formData.map(r=>String(r.location||'').trim()).filter(Boolean)]);const custom=type!=='pain'&&type!=='daily';const painLike=type!=='daily';return heading(x?'Modifier une entrée':'Nouvelle saisie')+`<form id="entry" class="card"><div class="mr-entry-top"><div class="field"><label for="type">Type d’enregistrement</label><select id="type">${types.map(([v,l])=>`<option value="${esc(v)}" ${v===type?'selected':''}>${esc(l)}</option>`).join('')}<option value="__other__">Autre…</option></select><input id="type-other" type="text" maxlength="100" placeholder="Nouveau type d’enregistrement" hidden></div><div class="field"><label for="when">${painLike?'Date et heure':'Date'}</label><input id="when" type="${painLike?'datetime-local':'date'}" required value="${esc(x?.when||(painLike?nowLocal():dateLocal()))}"></div></div><div class="field mr-score-field"><label>${painLike?'Intensité du ressenti':'Capacité fonctionnelle'}</label>${x?.score===null?'<p class="muted">Score non renseigné dans MMP. Choisis une valeur seulement si tu souhaites le compléter.</p>':''}${scale(x?.score===null?null:x?.score??5)}</div>${painLike?`${mrExtraHtml(x)}`:`<div class="field"><label>Activités significatives</label>${chips('tags',activities,x?.tags)}</div>`}<div class="field"><label for="note">Remarques (facultatif)</label><textarea id="note" placeholder="Ce que je souhaite retenir…">${esc(x?.note||'')}</textarea></div><div class="actions"><button class="button" type="submit">Enregistrer</button><button class="button secondary" type="button" id="cancel-edit">Annuler</button></div></form>`}
-function settings(){return heading('Réglages','Sauvegardes et importations.')+`<div class="card"><h2>Sauvegarder et restaurer</h2><p class="muted">Sauvegarde complète JSON. La restauration fusionne par identifiant.</p><div class="actions"><button class="button" id="backup">Sauvegarder JSON</button><button class="button secondary" id="csv">Exporter CSV</button><label class="button secondary" for="restore">Importer JSON</label><input type="file" id="restore" accept=".json,application/json" hidden></div></div><div class="card"><h2>Migration MMP · transfert définitif</h2><p>Importer le fichier JSON privé préparé à partir du rapport complet du 13.10.2026. Aucun document n’est envoyé à GitHub.</p><label class="button" for="mmpfile">Choisir le fichier MMP JSON</label><input type="file" id="mmpfile" accept=".json,application/json" hidden><div id="mmp-preview" class="footnote"></div><p class="footnote">Les heures MMP disponibles sont conservées. Les notes des bilans non encore extraites du PDF restent inconnues. Les champs originaux sont conservés.</p><button class="button secondary" id="mmpclear">Effacer uniquement les imports MMP</button></div><div class="card"><h2>À propos</h2><p>Mon Ressenti · Compagnon SZ · v0.2.37</p><p class="muted">Journal personnel, pas une application médicale. Stockage local.</p></div>`}
+function chips(name,opts,values=[]){return `<div class="chips" data-chips="${name}">${opts.map(o=>`<button type="button" class="chip ${values.includes(o)?'sel':''}" data-val="${esc(o)}" aria-pressed="${values.includes(o)}">${esc(o)}</button>`).join('')}</div>`}function scale(score){return `<div class="scale" id="scale">${Array.from({length:11},(_,i)=>`<button type="button" data-score="${i}" class="${score===i?'sel':''}" aria-pressed="${score===i}">${i}</button>`).join('')}</div>`}function form(x){let type=x?.type||window.nextType||'pain';window.nextType=null;const types=[['pain','Ressenti / douleur'],['daily','Bilan quotidien / capacités'],...[...new Set(formData.map(r=>r.type).filter(t=>t!=='pain'&&t!=='daily'))].sort((a,b)=>a.localeCompare(b,'fr')).map(t=>[t,t])];if(!types.some(([v])=>v===type))types.push([type,type]);const locations=mrSort([...MR_LOCATIONS,...formData.map(r=>String(r.location||'').trim()).filter(Boolean)]);const custom=type!=='pain'&&type!=='daily';const painLike=type!=='daily';return `<div class="mr-entry-heading"><h1>${x?'Modifier une entrée':'Nouvelle saisie'}</h1><span>Rapide d’abord, détails seulement si tu le souhaites.</span></div><form id="entry" class="card"><div class="mr-entry-top"><div class="field"><label for="type">Type d’enregistrement</label><select id="type">${types.map(([v,l])=>`<option value="${esc(v)}" ${v===type?'selected':''}>${esc(l)}</option>`).join('')}<option value="__other__">Autre…</option></select><input id="type-other" type="text" maxlength="100" placeholder="Nouveau type d’enregistrement" hidden></div><div class="field"><label for="when">${painLike?'Date et heure':'Date'}</label><input id="when" type="${painLike?'datetime-local':'date'}" required value="${esc(x?.when||(painLike?nowLocal():dateLocal()))}"></div></div><div class="field mr-score-field"><label>${painLike?'Intensité du ressenti':'Capacité fonctionnelle'}</label>${x?.score===null?'<p class="muted">Score non renseigné dans MMP. Choisis une valeur seulement si tu souhaites le compléter.</p>':''}${scale(x?.score===null?null:x?.score??5)}</div>${painLike?`${mrExtraHtml(x)}`:`<div class="field"><label>Activités significatives</label>${chips('tags',activities,x?.tags)}</div>`}<div class="field"><label for="note">Remarques (facultatif)</label><textarea id="note" placeholder="Ce que je souhaite retenir…">${esc(x?.note||'')}</textarea></div><div class="actions"><button class="button" type="submit">Enregistrer</button><button class="button secondary" type="button" id="cancel-edit">Annuler</button></div></form>`}
+function settings(){return heading('Réglages','Sauvegardes et importations.')+`<div class="card"><h2>Sauvegarder et restaurer</h2><p class="muted">Sauvegarde complète JSON. La restauration fusionne par identifiant.</p><div class="actions"><button class="button" id="backup">Sauvegarder JSON</button><button class="button secondary" id="csv">Exporter CSV</button><label class="button secondary" for="restore">Importer JSON</label><input type="file" id="restore" accept=".json,application/json" hidden></div></div><div class="card"><h2>Migration MMP · transfert définitif</h2><p>Importer le fichier JSON privé préparé à partir du rapport complet du 13.10.2026. Aucun document n’est envoyé à GitHub.</p><label class="button" for="mmpfile">Choisir le fichier MMP JSON</label><input type="file" id="mmpfile" accept=".json,application/json" hidden><div id="mmp-preview" class="footnote"></div><p class="footnote">Les heures MMP disponibles sont conservées. Les notes des bilans non encore extraites du PDF restent inconnues. Les champs originaux sont conservés.</p><button class="button secondary" id="mmpclear">Effacer uniquement les imports MMP</button></div><div class="card"><h2>À propos</h2><p>Mon Ressenti · Compagnon SZ · v0.2.39</p><p class="muted">Journal personnel, pas une application médicale. Stockage local.</p></div>`}
 function download(filename,content,mime){let a=document.createElement('a'),url=URL.createObjectURL(new Blob([content],{type:mime}));a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}function csvEscape(x){return '"'+String(x??'').replace(/"/g,'""')+'"'}
 
-// Rapport v0.2.37 : l'application reste en mémoire, avec ses événements et sa base locale.
+// Rapport v0.2.39 : l'application reste en mémoire, avec ses événements et sa base locale.
 let mrReportSaved=null;
 window.MonRessentiShowReport=function(html){
   if(mrReportSaved)return;
@@ -98,7 +110,7 @@ window.MonRessentiShowReport=function(html){
   const title=document.title;
   mrReportSaved={original,reportStyle,title};
   while(doc.body.firstChild)document.body.appendChild(doc.body.firstChild);
-  document.title='Rapport des ressentis personnels · v0.2.37';
+  document.title='Rapport des ressentis personnels · v0.2.39';
   // Diagnostic local, sans stockage ni transfert de données.
   const printButton=document.getElementById('report-print');
   if(printButton){
@@ -113,12 +125,12 @@ window.MonRessentiShowReport=function(html){
         if(!panel){
           panel=document.createElement('div');panel.id='mr-print-diagnostic';
           panel.style.cssText='position:fixed;z-index:2147483647;bottom:12px;left:12px;right:12px;background:#fff;color:#123;padding:14px;border:3px solid #187a85;border-radius:10px;box-shadow:0 2px 25px #0006;font:15px system-ui;max-height:55vh;overflow:auto';
-          panel.innerHTML='<strong>Diagnostic impression · v0.2.37</strong><p style="font-size:12px">Test indépendant du rapport : une page de texte neutre, sans donnée personnelle.</p><pre id="mr-print-log" style="white-space:pre-wrap;font:13px system-ui"></pre><button type="button" id="mr-print-minimal" style="padding:9px;margin-right:8px">Tester impression simple</button><button type="button" id="mr-print-dismiss" style="padding:9px">Fermer le diagnostic</button>';
+          panel.innerHTML='<strong>Diagnostic impression · v0.2.39</strong><p style="font-size:12px">Test indépendant du rapport : une page de texte neutre, sans donnée personnelle.</p><pre id="mr-print-log" style="white-space:pre-wrap;font:13px system-ui"></pre><button type="button" id="mr-print-minimal" style="padding:9px;margin-right:8px">Tester impression simple</button><button type="button" id="mr-print-dismiss" style="padding:9px">Fermer le diagnostic</button>';
           panel.querySelector('#mr-print-minimal').onclick=()=>{
             add('Test simple : clic reçu, création d’une feuille neutre');
             // Conserve les deux feuilles et le rapport : seul le rendu imprimé est temporairement remplacé.
             const test=document.createElement('div');test.id='mr-print-minimal-sheet';
-            test.textContent='TEST IMPRESSION — MON RESSENTI v0.2.37';
+            test.textContent='TEST IMPRESSION — MON RESSENTI v0.2.39';
             test.style.cssText='display:none';
             const css=document.createElement('style');
             css.textContent='@media print{body > :not(#mr-print-minimal-sheet){display:none!important}#mr-print-minimal-sheet{display:block!important;position:static!important;font:22px Arial,sans-serif!important;margin:20mm!important;color:#000!important}}';
@@ -180,7 +192,7 @@ function wire(data){
     // Ne remplace ni la page ni le rapport : le CSS print temporaire masque
     // le reste de l'application et affiche uniquement une phrase neutre.
     const test=document.createElement('div');test.id='mr-root-print-test';
-    test.textContent='Test impression Mon Ressenti v0.2.37 — page neutre.';
+    test.textContent='Test impression Mon Ressenti v0.2.39 — page neutre.';
     const style=document.createElement('style');
     style.textContent='@media screen {#mr-root-print-test{display:none}} @media print {body > *:not(#mr-root-print-test){display:none!important} #mr-root-print-test{display:block!important;position:static!important;color:black!important;background:white!important;font:18pt Arial,sans-serif!important;padding:20mm!important}}';
     document.body.append(test,style);
@@ -201,9 +213,9 @@ function wire(data){
         const response=await fetch(path+'?diagnostic=0.2.37-'+Date.now(),{cache:'no-store'});
         if(!response.ok)throw Error(path+' : HTTP '+response.status);
         const content=await response.text();
-        if(!content.includes('0.2.37'))throw Error(path+' : le serveur ne fournit pas la v0.2.37');
+        if(!content.includes('0.2.37'))throw Error(path+' : le serveur ne fournit pas la v0.2.39');
       }
-      result.textContent='Les quatre fichiers v0.2.37 sont accessibles. Actualisation du cache…';
+      result.textContent='Les quatre fichiers v0.2.39 sont accessibles. Actualisation du cache…';
       if('caches' in window){
         const names=await caches.keys();
         await Promise.all(names.filter(name=>name.startsWith('mon-ressenti-')).map(name=>caches.delete(name)));
