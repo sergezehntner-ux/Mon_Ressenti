@@ -52,3 +52,9 @@ header{height:60px;padding-top:6px;padding-bottom:6px}.logo{width:38px;height:38
 .mr-journal-search-row label{display:block;font-size:.78rem;font-weight:650;margin-bottom:3px}
 .mr-journal-search-row input{display:block;box-sizing:border-box;width:100%;min-width:0;margin:0;padding:9px 7px;font-size:.88rem}
 @media(max-width:380px){.mr-journal-search-row{gap:6px;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)}.mr-journal-search-row input{font-size:.8rem;padding:8px 4px}}
+
+/* v0.2.50 : deux champs Journal strictement alignés. */
+.mr-journal-search-row{align-items:stretch}
+.mr-journal-search-row .mr-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.mr-journal-search-row input,#journal-search{display:block;box-sizing:border-box;width:100%;height:44px;min-height:44px;max-height:44px;margin:0;padding:0 10px;line-height:normal;font-size:16px;border:1px solid #c9dddd;border-radius:9px;background:#fff}
+.mr-journal-search-row input[type=date]{min-width:0;-webkit-appearance:auto;appearance:auto}
