@@ -45,3 +45,10 @@ header{height:60px;padding-top:6px;padding-bottom:6px}.logo{width:38px;height:38
 .home-screen{padding-bottom:100px;}
 .journal-card .home-entry-summary{font-size:.79rem;}
 @media(max-width:520px){.journal-card .home-entry-summary{font-size:.68rem;}}
+
+/* Journal : recherche compacte sur une seule ligne. */
+.mr-journal-search-row{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:9px;align-items:end;margin:7px 0 10px}
+.mr-journal-search-row>div{min-width:0}
+.mr-journal-search-row label{display:block;font-size:.78rem;font-weight:650;margin-bottom:3px}
+.mr-journal-search-row input{display:block;box-sizing:border-box;width:100%;min-width:0;margin:0;padding:9px 7px;font-size:.88rem}
+@media(max-width:380px){.mr-journal-search-row{gap:6px;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)}.mr-journal-search-row input{font-size:.8rem;padding:8px 4px}}
