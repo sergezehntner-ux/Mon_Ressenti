@@ -65,7 +65,7 @@ function stats(d){
  <div class="mr-metrics"><div class="mr-metric"><span>Douleur moyenne</span><strong>${avg(p.map(x=>x.score).filter(Number.isFinite))}</strong><small>${p.length} observations</small></div><div class="mr-metric"><span>Capacité moyenne</span><strong>${avg(q.map(x=>x.score).filter(Number.isFinite))}</strong><small>${q.length} bilans</small></div></div>
  <div class="mr-analysis-chart"><h2>Répartition des intensités <small>Intensité 0–10 · nombre d’observations</small></h2>
  <div class="mr-compact-bars">${buckets.map(b=>`<div class="mr-bar-col"><b>${b.c||''}</b><div class="mr-bar-track"><i style="height:${100*b.c/max}%"></i></div><small>${b.n}</small></div>`).join('')}</div></div>
- <div class="mr-analysis-report"><div><strong>Rapport des ressentis personnels</strong><small>2 pages A4 · calcul local · impression Android</small></div><div class="actions"><button class="button" data-report-mode="cover">Page de garde</button><button class="button secondary" data-report-mode="detail">Rapport</button><button class="button secondary" data-report-mode="all">Ensemble</button></div></div>
+ <div class="mr-analysis-report"><div><strong>Rapport des ressentis personnels</strong></div><div class="actions"><button class="button" data-report-mode="cover">Page de garde</button><button class="button secondary" data-report-mode="detail">Rapport</button><button class="button secondary" data-report-mode="all">Ensemble</button></div></div>
  <p class="mr-analysis-disclaimer">Une association statistique ne démontre pas une relation de cause à effet.</p></div>`;
 }
 

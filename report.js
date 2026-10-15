@@ -100,10 +100,10 @@ const addRemarks=(sheet,items)=>{
 };
 if(mode==='cover'){
   // Des pages supplémentaires si nécessaire ; aucune remarque supprimée ou raccourcie.
-  const perPage=3;addRemarks(cover,noteRows.slice(0,1));
+  const perPage=10;addRemarks(cover,noteRows.slice(0,1));
   for(let i=1;i<noteRows.length;i+=perPage){
     const extra=doc.createElement('article');extra.className='sheet second mr-remark-page';
-    extra.innerHTML='<section class="section"><h2>Remarques personnelles — suite</h2></section><div class="report-foot"></div>';
+    extra.innerHTML='<div class="report-foot"></div>';
     doc.body.insertBefore(extra,doc.querySelector('script'));addRemarks(extra,noteRows.slice(i,i+perPage));
   }
   details.forEach(el=>el.remove());
@@ -115,6 +115,17 @@ if(mode==='cover'){
   // La couverture du dossier complet reste volontairement limitée à une page.
   addRemarks(cover,noteRows.slice(0,1));
 }
+// Regrouper les petites sections du rapport, sans changer leurs contenus.
+// Pages initiales : A (graphiques), B (facteurs), C (traitements),
+// D (moment/environnement), E (activités). C suit B, E suit D.
+const detailSheets=[...doc.querySelectorAll('article.sheet')].filter(el=>el!==cover);
+if(detailSheets.length===5){
+  for(const [target,source] of [[detailSheets[1],detailSheets[2]],[detailSheets[3],detailSheets[4]]]){
+    const foot=target.querySelector('.report-foot');
+    [...source.querySelectorAll(':scope > .section, :scope > .hint')].forEach(node=>target.insertBefore(node,foot));
+    source.remove();
+  }
+}
 const printed=[...doc.querySelectorAll('article.sheet')];
 printed.forEach((sheet,i)=>{
  const foot=sheet.querySelector('.report-foot');
@@ -122,8 +133,11 @@ printed.forEach((sheet,i)=>{
  else foot.innerHTML=`<span>${esc(displayName)} · ${fr(first)} – ${fr(last)}</span><span>Page ${i+1} / ${printed.length}</span><span>Observations personnelles</span>`;}
 });
 const style=doc.querySelector('style');style.textContent+=`
+/* v0.2.53 : densité des sections et remarques, sans changement d’impression */
+@media print{.sheet.second .section{margin-top:12px}.sheet.second .section:first-child{margin-top:5px}.mr-remark-page .section{margin-top:6px}.mr-remark-page .mr-remarks{margin-top:5px}}
+
 .mr-remarks{font-size:10px}.mr-remark{padding:5px 0;border-bottom:1px solid #dce8eb;break-inside:avoid}.mr-remark-context{font-size:9px;color:#52717b}.mr-remark-text{white-space:pre-wrap;overflow-wrap:anywhere}.mr-remark-page .mr-remarks{margin-top:10px}@media print{.mr-remarks{font-size:8px}.mr-remark{padding:3px 0}.mr-remark-context{font-size:7px}.mr-remark-text{font-size:8px}}`;
-const toolbar=doc.querySelector('.toolbar span');if(toolbar)toolbar.textContent='Rapport local · v0.2.52 · '+({cover:'Page de garde',detail:'Rapport',all:'Ensemble'}[mode]||'Ensemble');
+const toolbar=doc.querySelector('.toolbar span');if(toolbar)toolbar.textContent='Rapport local · v0.2.53 · '+({cover:'Page de garde',detail:'Rapport',all:'Ensemble'}[mode]||'Ensemble');
 return '<!doctype html>\n'+doc.documentElement.outerHTML;
 }
 window.MonRessentiReport={make};
