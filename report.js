@@ -100,8 +100,8 @@ const addRemarks=(sheet,items)=>{
 };
 if(mode==='cover'){
   // Des pages supplémentaires si nécessaire ; aucune remarque supprimée ou raccourcie.
-  const perPage=30;addRemarks(cover,noteRows.slice(0,1));
-  for(let i=1;i<noteRows.length;i+=perPage){
+  const perPage=32;const coverCount=4;addRemarks(cover,noteRows.slice(0,coverCount));
+  for(let i=coverCount;i<noteRows.length;i+=perPage){
     const extra=doc.createElement('article');extra.className='sheet second mr-remark-page';
     extra.innerHTML='<div class="report-foot"></div>';
     doc.body.insertBefore(extra,doc.querySelector('script'));addRemarks(extra,noteRows.slice(i,i+perPage));
@@ -139,7 +139,17 @@ const style=doc.querySelector('style');style.textContent+=`
 .mr-remarks{font-size:10px}.mr-remark{padding:5px 0;border-bottom:1px solid #dce8eb;break-inside:avoid}.mr-remark-context{font-size:9px;color:#52717b}.mr-remark-text{white-space:pre-wrap;overflow-wrap:anywhere}.mr-remark-page .mr-remarks{margin-top:10px}@media print{.mr-remarks{font-size:8px}.mr-remark{padding:3px 0}.mr-remark-context{font-size:7px}.mr-remark-text{font-size:8px}}
 /* v0.2.54 : pied minimal, liste de remarques dense */
 @media print{.report-foot{font-size:4.5px!important;line-height:1!important;padding-top:1px!important;bottom:1mm!important;border-top-width:.3px}.mr-remark-page .mr-remark{padding:2px 0}.mr-remark-page .mr-remarks{font-size:7px}.mr-remark-page .mr-remark-context{font-size:6.5px}.mr-remark-page .mr-remark-text{font-size:7px}.mr-remark-page .section{margin-top:3px!important}.mr-remark-page .hint{margin:2px 0 4px}}`;
-const toolbar=doc.querySelector('.toolbar span');if(toolbar)toolbar.textContent='Rapport local · v0.2.54 · '+({cover:'Page de garde',detail:'Rapport',all:'Ensemble'}[mode]||'Ensemble');
+style.textContent+=`/* v0.2.55 : pages de remarques en deux colonnes, lisibles et sans lignes isolées */
+@media print{
+ .mr-remark-page .mr-remarks{column-count:2;column-gap:7mm;font-size:9px!important;line-height:1.24}
+ .mr-remark-page .mr-remarks h2,.mr-remark-page .mr-remarks>.hint{column-span:all}
+ .mr-remark-page .mr-remark{break-inside:avoid;page-break-inside:avoid;padding:4px 0!important}
+ .mr-remark-page .mr-remark-context{font-size:8px!important}
+ .mr-remark-page .mr-remark-text{font-size:9px!important}
+ .report-foot{font-size:6px!important}
+}
+`;
+const toolbar=doc.querySelector('.toolbar span');if(toolbar)toolbar.textContent='Rapport local · v0.2.55 · '+({cover:'Page de garde',detail:'Rapport',all:'Ensemble'}[mode]||'Ensemble');
 return '<!doctype html>\n'+doc.documentElement.outerHTML;
 }
 window.MonRessentiReport={make};
