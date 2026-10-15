@@ -176,11 +176,59 @@ window.MonRessentiShowReport=function(html){
   const title=document.title;
   mrReportSaved={original,reportStyle,title};
   while(doc.body.firstChild)document.body.appendChild(doc.body.firstChild);
+  document.body.dataset.mrReportMode=doc.body.dataset.mrReportMode||'all';
+  // Pagination de la page de garde fondée sur la hauteur mesurée des remarques,
+  // plutôt que sur un nombre arbitraire de lignes ou de remarques.
+  if(document.body.dataset.mrReportMode==='cover'){
+    const first=document.querySelector('article.sheet');
+    const section=first?.querySelector('.mr-remarks');
+    if(first&&section){
+      const blocks=[...section.querySelectorAll('.mr-remark')];
+      const foot=first.querySelector('.report-foot');
+      const mm=px=>px*96/25.4;
+      // La largeur d'impression est 180 mm (A4, marges et padding inclus).
+      const maxY=mm(248);
+      const newPage=()=>{
+        const page=document.createElement('article');
+        page.className='sheet second mr-remark-page';
+        const sec=document.createElement('section');sec.className='section mr-remarks';
+        sec.innerHTML='<h2>Remarques personnelles et contexte factoriel</h2><p class="hint">Textes originaux, sans reformulation ni interprétation. Contexte issu du même enregistrement.</p>';
+        page.appendChild(sec);
+        const f=document.createElement('div');f.className='report-foot';page.appendChild(f);
+        document.body.insertBefore(page,document.querySelector('script'));
+        return {page,sec};
+      };
+      // Mesurer à la largeur de la feuille en style imprimé; déplacer seulement
+      // les blocs entiers pour conserver date, facteurs et texte ensemble.
+      const ruler=document.createElement('div');
+      ruler.style.cssText='position:absolute;visibility:hidden;width:180mm;font:9px Arial,sans-serif;line-height:1.3';
+      document.body.appendChild(ruler);
+      let target=section, current=first;
+      for(const block of blocks){
+        ruler.innerHTML='';const test=block.cloneNode(true);ruler.appendChild(test);
+        const blockHeight=Math.max(test.getBoundingClientRect().height,block.getBoundingClientRect().height)+mm(1.8);
+        const top=target.getBoundingClientRect().top-current.getBoundingClientRect().top;
+        const occupied=top+target.getBoundingClientRect().height;
+        if(occupied+blockHeight>maxY && target.querySelector('.mr-remark')){
+          const next=newPage();target=next.sec;current=next.page;
+        }
+        target.appendChild(block);
+      }
+      ruler.remove();
+      const pages=[...document.querySelectorAll('article.sheet')];
+      pages.forEach((page,i)=>{
+        const f=page.querySelector('.report-foot');if(!f)return;
+        const spans=f.querySelectorAll('span');
+        if(spans.length>=2)spans[1].textContent=`Page ${i+1} / ${pages.length}`;
+        else f.innerHTML=`<span>Observations personnelles</span><span>Page ${i+1} / ${pages.length}</span><span>Mon Ressenti</span>`;
+      });
+    }
+  }
   const now=new Date();
   const pad=n=>String(n).padStart(2,'0');
   const stamp=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
-  const mode=doc.querySelector('.toolbar span')?.textContent||'';
-  const suffix=mode.includes('Page de garde')?'Garde':mode.includes('Rapport')?'Rapport':'Ensemble';
+  const mode=doc.body.getAttribute('data-mr-report-mode');
+  const suffix=({cover:'Garde',detail:'Rapport',all:'Ensemble'})[mode]||'Ensemble';
   document.title=`${stamp}_MR_${suffix}`;
   // Diagnostic local, sans stockage ni transfert de données.
   const printButton=document.getElementById('report-print');
@@ -243,6 +291,7 @@ window.MonRessentiReturnToApp=function(){
   document.body.appendChild(saved.original);
   saved.reportStyle.remove();
   document.title=saved.title;
+  delete document.body.dataset.mrReportMode;
   mrReportSaved=null;
   window.scrollTo(0,0);
 };
