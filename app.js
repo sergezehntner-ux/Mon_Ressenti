@@ -176,7 +176,12 @@ window.MonRessentiShowReport=function(html){
   const title=document.title;
   mrReportSaved={original,reportStyle,title};
   while(doc.body.firstChild)document.body.appendChild(doc.body.firstChild);
-  document.title='Rapport des ressentis personnels · v0.2.41';
+  const now=new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  const stamp=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
+  const mode=doc.querySelector('.toolbar span')?.textContent||'';
+  const suffix=mode.includes('Page de garde')?'Garde':mode.includes('Rapport')?'Rapport':'Ensemble';
+  document.title=`${stamp}_MR_${suffix}`;
   // Diagnostic local, sans stockage ni transfert de données.
   const printButton=document.getElementById('report-print');
   if(printButton){
