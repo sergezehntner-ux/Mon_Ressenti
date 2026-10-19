@@ -86,30 +86,36 @@ const MR_GROUPS={
 const mrSort=arr=>[...new Set(arr.filter(Boolean))].sort((x,y)=>x.localeCompare(y,'fr',{sensitivity:'base'}));
 // Lecture seule des champs historiques MMP : leurs intitulés sont conservés tels quels.
 const MR_LEGACY_FIELDS={locations:['Endroit','Endroits'],symptoms:['Autres symptômes associés'],features:['Caractéristiques'],aggravating:['Facteurs Aggravants'],medications:['Médicaments'],interventions:['Interventions'],environment:['Environnements','Environnement'],tags:['Activités Significatives','Activités significatives']};
-// Lecture non destructive des valeurs historiques MMP, y compris les libellés variables.
+// v0.2.59 : retrouver les valeurs des enregistrements MMP sans modifier les données.
+// La clé d'affichage « activities » correspond à la clé de stockage « tags ».
 function mrHistoricalValues(r,key){
  const values=[];
  const add=v=>{if(Array.isArray(v))v.forEach(add);else if(typeof v==='string'&&v.trim())v.split(/[,;\n]+/).forEach(part=>{if(part.trim())values.push(part.trim())})};
- add(r[key]);
- if(key==='locations')add(r.location);
- // Certaines anciennes sauvegardes utilisent « activities » plutôt que « tags ».
- if(key==='tags')add(r.activities);
- const original=r.mmpOriginalFields||{};
  const norm=v=>String(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z]/g,'');
- const known=(MR_LEGACY_FIELDS[key]||[]).map(norm);
+ const actualKey=key==='activities'?'tags':key;
+ add(r[actualKey]);
+ if(key==='activities')add(r.activities); // compatibilité avec les anciennes sauvegardes
+ if(key==='locations')add(r.location);
+ const original=r.mmpOriginalFields||{};
+ const known=(MR_LEGACY_FIELDS[actualKey]||[]).map(norm);
+ const isMedication=v=>/\d\s*(?:mg|mcg|µg|ml|g)\b|\b(?:comprim[eé]s?|g[eé]lules?|injection|patch(?:s)?|parac[eé]tamol|ibuprof[eè]ne|neurodol|dafalgan)\b/i.test(v);
  for(const [field,value] of Object.entries(original)){
   const f=norm(field);
-  if(known.includes(f) || (key==='tags'&&f.startsWith('activitessignificativ')) ||
-    (key==='medications'&&/^(medicaments|traitementsmedicamenteux|prisesmedicamenteuses)/.test(f))){add(value);continue}
-  // MMP rangeait parfois un médicament sous « Facteurs inefficaces ».
-  // Ne retenir que les mentions clairement médicamenteuses, sans importer
-  // les activités ou interventions non médicamenteuses de cette rubrique.
-  if(key==='medications'&&/^(facteursinefficaces|facteurssoulageants)$/.test(f)){
+  if(known.includes(f)||(key==='activities'&&f.startsWith('activitessignificativ'))||
+     (key==='medications'&&/^(medicaments|traitementsmedicamenteux|prisesmedicamenteuses)/.test(f))){add(value);continue}
+  if((key==='medications'||key==='interventions')&&/^(facteursinefficaces|facteurssoulageants)$/.test(f)){
    const items=[];
-   const collect=v=>{if(Array.isArray(v))v.forEach(collect);else if(typeof v==='string')v.split(/[,;\n]+/).forEach(x=>items.push(x.trim()))};
+   const collect=v=>{if(Array.isArray(v))v.forEach(collect);else if(typeof v==='string')v.split(/[,;\n]+/).forEach(x=>{if(x.trim())items.push(x.trim())})};
    collect(value);
-   for(const item of items)if(/\b(?:mg|mcg|µg|ml|comprim[eé]s?|g[eé]lules?|injection|patch)\b/i.test(item)||/\d\s*(?:mg|mcg|µg|ml)\b/i.test(item))add(item);
+   for(const item of items)if(key==='medications'?isMedication(item):!isMedication(item))add(item);
   }
+ }
+ // Les interventions non médicamenteuses de MMP sont aussi stockées dans « relieving ».
+ if(key==='interventions'){
+  const items=[];
+  const collect=v=>{if(Array.isArray(v))v.forEach(collect);else if(typeof v==='string')v.split(/[,;\n]+/).forEach(x=>{if(x.trim())items.push(x.trim())})};
+  collect(r.relieving);
+  for(const item of items)if(!isMedication(item))add(item);
  }
  return values;
 }
@@ -177,7 +183,7 @@ function mrWireFactorManager(data){
   try{await new Promise((resolve,reject)=>{t.oncomplete=resolve;t.onerror=()=>reject(t.error);t.onabort=()=>reject(t.error)});feedback.textContent=`${affected.length} enregistrement(s) mis à jour. Sauvegarde préalable téléchargée.`;setTimeout(()=>show('settings'),600)}catch(e){alert('Modification interrompue : '+e.message)}
  };
 }
-function settings(){return heading('Réglages','Sauvegardes et importations.')+`<div class="card"><h2>Sauvegarder et restaurer</h2><p class="muted">Sauvegarde complète JSON. La restauration fusionne par identifiant.</p><div class="actions"><button class="button" id="backup">Sauvegarder JSON</button><button class="button secondary" id="csv">Exporter CSV</button><label class="button secondary" for="restore">Importer JSON</label><input type="file" id="restore" accept=".json,application/json" hidden></div></div><div class="card"><h2>Migration MMP · transfert définitif</h2><p>Importer le fichier JSON privé préparé à partir du rapport complet du 13.10.2026. Aucun document n’est envoyé à GitHub.</p><label class="button" for="mmpfile">Choisir le fichier MMP JSON</label><input type="file" id="mmpfile" accept=".json,application/json" hidden><div id="mmp-preview" class="footnote"></div><p class="footnote">Les heures MMP disponibles sont conservées. Les notes des bilans non encore extraites du PDF restent inconnues. Les champs originaux sont conservés.</p><button class="button secondary" id="mmpclear">Effacer uniquement les imports MMP</button></div><div class="card"><h2>Gestion des facteurs</h2><p class="muted">Renommer, fusionner ou supprimer un terme dans tous les enregistrements. Une sauvegarde JSON est téléchargée avant toute modification.</p><label for="factor-group">Groupe</label><select id="factor-group">${Object.entries(MR_GROUPS).map(([k,g])=>`<option value="${k}">${esc(g.title)}</option>`).join('')}</select><label for="factor-source">Facteur à modifier</label><select id="factor-source"></select><label for="factor-action">Opération</label><select id="factor-action"><option value="merge">Fusionner avec un autre facteur</option><option value="rename">Renommer</option><option value="delete">Supprimer le facteur</option></select><div id="factor-target-wrap"><label for="factor-target">Facteur de destination</label><select id="factor-target"></select></div><button class="button" type="button" id="factor-apply">Appliquer aux enregistrements</button><p class="muted" id="factor-feedback"></p></div><div class="card"><h2>À propos</h2><p>Mon Ressenti · Observer pour comprendre. Comprendre pour agir. Agir pour mieux vivre. · v0.2.58</p><p class="muted">Journal personnel, pas une application médicale. Stockage local.</p></div>`}
+function settings(){return heading('Réglages','Sauvegardes et importations.')+`<div class="card"><h2>Sauvegarder et restaurer</h2><p class="muted">Sauvegarde complète JSON. La restauration fusionne par identifiant.</p><div class="actions"><button class="button" id="backup">Sauvegarder JSON</button><button class="button secondary" id="csv">Exporter CSV</button><label class="button secondary" for="restore">Importer JSON</label><input type="file" id="restore" accept=".json,application/json" hidden></div></div><div class="card"><h2>Migration MMP · transfert définitif</h2><p>Importer le fichier JSON privé préparé à partir du rapport complet du 13.10.2026. Aucun document n’est envoyé à GitHub.</p><label class="button" for="mmpfile">Choisir le fichier MMP JSON</label><input type="file" id="mmpfile" accept=".json,application/json" hidden><div id="mmp-preview" class="footnote"></div><p class="footnote">Les heures MMP disponibles sont conservées. Les notes des bilans non encore extraites du PDF restent inconnues. Les champs originaux sont conservés.</p><button class="button secondary" id="mmpclear">Effacer uniquement les imports MMP</button></div><div class="card"><h2>Gestion des facteurs</h2><p class="muted">Renommer, fusionner ou supprimer un terme dans tous les enregistrements. Une sauvegarde JSON est téléchargée avant toute modification.</p><label for="factor-group">Groupe</label><select id="factor-group">${Object.entries(MR_GROUPS).map(([k,g])=>`<option value="${k}">${esc(g.title)}</option>`).join('')}</select><label for="factor-source">Facteur à modifier</label><select id="factor-source"></select><label for="factor-action">Opération</label><select id="factor-action"><option value="merge">Fusionner avec un autre facteur</option><option value="rename">Renommer</option><option value="delete">Supprimer le facteur</option></select><div id="factor-target-wrap"><label for="factor-target">Facteur de destination</label><select id="factor-target"></select></div><button class="button" type="button" id="factor-apply">Appliquer aux enregistrements</button><p class="muted" id="factor-feedback"></p></div><div class="card"><h2>À propos</h2><p>Mon Ressenti · Observer pour comprendre. Comprendre pour agir. Agir pour mieux vivre. · v0.2.59</p><p class="muted">Journal personnel, pas une application médicale. Stockage local.</p></div>`}
 function download(filename,content,mime){let a=document.createElement('a'),url=URL.createObjectURL(new Blob([content],{type:mime}));a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}function csvEscape(x){return '"'+String(x??'').replace(/"/g,'""')+'"'}
 
 // Rapport v0.2.41 : l'application reste en mémoire, avec ses événements et sa base locale.
