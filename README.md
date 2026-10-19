@@ -34,3 +34,7 @@ Il ne s'agit pas d'un dispositif médical. Les analyses décrivent des déclarat
 
 ## v0.2.8 — Rapport imprimable
 Dans Analyses, « Préparer le rapport PDF » ouvre une synthèse locale de deux pages A4 paysage. Le navigateur permet de choisir Imprimer > Enregistrer au format PDF. Les champs d’identité facultatifs sont conservés uniquement dans le stockage local du navigateur. Les calculs portent sur les observations présentes, sans données simulées.
+
+
+## Relance GitHub Pages — 19 octobre 2026
+Déclenchement d’une nouvelle publication après suppression du workflow #68 bloqué. Aucun changement du code applicatif ni des données locales.
