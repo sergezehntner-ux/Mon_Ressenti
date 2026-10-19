@@ -143,7 +143,7 @@ style.textContent+=`/* v0.2.56 : remarques lisibles, une seule colonne */
 @media print{.mr-remarks{font-size:9px}.mr-remark-context{font-size:8px}.mr-remark-text{font-size:9px}}
 `;
 doc.body.setAttribute('data-mr-report-mode',mode);
-const toolbar=doc.querySelector('.toolbar span');if(toolbar)toolbar.textContent='Rapport local · v0.2.56 · '+({cover:'Page de garde',detail:'Rapport',all:'Ensemble'}[mode]||'Ensemble');
+const toolbar=doc.querySelector('.toolbar span');if(toolbar)toolbar.textContent='Rapport local · v0.2.57 · '+({cover:'Page de garde',detail:'Rapport',all:'Ensemble'}[mode]||'Ensemble');
 return '<!doctype html>\n'+doc.documentElement.outerHTML;
 }
 window.MonRessentiReport={make};
