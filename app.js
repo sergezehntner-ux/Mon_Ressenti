@@ -86,7 +86,7 @@ const MR_GROUPS={
 const mrSort=arr=>[...new Set(arr.filter(Boolean))].sort((x,y)=>x.localeCompare(y,'fr',{sensitivity:'base'}));
 // Lecture seule des champs historiques MMP : leurs intitulés sont conservés tels quels.
 const MR_LEGACY_FIELDS={locations:['Endroit','Endroits'],symptoms:['Autres symptômes associés'],features:['Caractéristiques'],aggravating:['Facteurs Aggravants'],medications:['Médicaments'],interventions:['Interventions'],environment:['Environnements','Environnement'],tags:['Activités Significatives','Activités significatives']};
-// v0.2.59 : retrouver les valeurs des enregistrements MMP sans modifier les données.
+// v0.2.60 : retrouver les valeurs des enregistrements MMP sans modifier les données.
 // La clé d'affichage « activities » correspond à la clé de stockage « tags ».
 function mrHistoricalValues(r,key){
  const values=[];
@@ -155,35 +155,101 @@ function mrWire(){
 }
 
 function chips(name,opts,values=[]){return `<div class="chips" data-chips="${name}">${opts.map(o=>`<button type="button" class="chip ${values.includes(o)?'sel':''}" data-val="${esc(o)}" aria-pressed="${values.includes(o)}">${esc(o)}</button>`).join('')}</div>`}function scale(score){return `<div class="scale" id="scale">${Array.from({length:11},(_,i)=>`<button type="button" data-score="${i}" class="${score===i?'sel':''}" aria-pressed="${score===i}">${i}</button>`).join('')}</div>`}function form(x){let type=x?.type||window.nextType||'pain';window.nextType=null;const types=[['pain','Ressenti / douleur'],['daily','Bilan quotidien / capacités'],...[...new Set(formData.map(r=>r.type).filter(t=>t!=='pain'&&t!=='daily'))].sort((a,b)=>a.localeCompare(b,'fr')).map(t=>[t,t])];if(!types.some(([v])=>v===type))types.push([type,type]);const locations=mrSort([...MR_LOCATIONS,...formData.map(r=>String(r.location||'').trim()).filter(Boolean)]);const custom=type!=='pain'&&type!=='daily';const painLike=type!=='daily';return `<div class="mr-entry-heading"><h1>${x?'Modifier une entrée':'Nouvelle saisie'}</h1><span>Rapide d’abord, détails seulement si tu le souhaites.</span></div><form id="entry" class="card"><div class="mr-entry-top"><div class="field"><label for="type">Type d’enregistrement</label><select id="type">${types.map(([v,l])=>`<option value="${esc(v)}" ${v===type?'selected':''}>${esc(l)}</option>`).join('')}<option value="__other__">Autre…</option></select><input id="type-other" type="text" maxlength="100" placeholder="Nouveau type d’enregistrement" hidden></div><div class="field"><label for="when">${painLike?'Date et heure':'Date'}</label><input id="when" type="${painLike?'datetime-local':'date'}" required value="${esc(x?.when||(painLike?nowLocal():dateLocal()))}"></div></div><div class="field mr-score-field"><label>${painLike?'Intensité du ressenti':'Capacité fonctionnelle'}</label>${x?.score===null?'<p class="muted">Score non renseigné dans MMP. Choisis une valeur seulement si tu souhaites le compléter.</p>':''}${scale(x?.score===null?null:x?.score??5)}</div>${painLike?`${mrExtraHtml(x)}`:`<div class="mr-factor-list">${mrGroupHtml('activities',x?.tags||[])}</div>`}<div class="field"><label for="note">Remarques (facultatif)</label><textarea id="note" placeholder="Ce que je souhaite retenir…">${esc(x?.note||'')}</textarea></div><div class="actions"><button class="button" type="submit">Enregistrer</button><button class="button secondary" type="button" id="cancel-edit">Annuler</button></div></form>`}
-// Gestion collective : ne modifie jamais les notes libres ni les métadonnées de provenance.
+// Gestion collective V60 : mêmes sources historiques que « Déjà utilisés ».
+// Ne modifie ni les notes libres ni les métadonnées de provenance.
 function mrFactorValues(data,key){return mrSort(data.flatMap(r=>mrHistoricalValues(r,key)).concat(MR_GROUPS[key].options))}
 function mrReplaceFactor(record,key,source,target){
  const r={...record};let changed=false;
- const replaceArray=a=>{if(!Array.isArray(a))return a;let out=a.map(v=>v===source?(changed=true,target):v).filter(v=>v!==null);return [...new Set(out)]};
- r[key]=replaceArray(r[key]);
+ const norm=v=>String(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z]/g,'');
+ const actualKey=key==='activities'?'tags':key;
+ const known=(MR_LEGACY_FIELDS[actualKey]||[]).map(norm);
+ const isMedication=v=>/\d\s*(?:mg|mcg|µg|ml|g)\b|\b(?:comprim[eé]s?|g[eé]lules?|injection|patch(?:s)?|parac[eé]tamol|ibuprof[eè]ne|neurodol|dafalgan)\b/i.test(v);
+ const replaceValue=v=>{
+  if(Array.isArray(v)){
+   let out=v.map(item=>replaceValue(item)).filter(item=>item!==null&&item!=='');
+   return [...new Set(out)];
+  }
+  if(typeof v!=='string')return v;
+  // Même découpage que la liste historique, mais préserve les séparateurs
+  // lorsque le facteur ne se trouve pas dans cette chaîne.
+  const parts=v.split(/([,;\n]+)/);
+  if(!parts.some(part=>part.trim()===source))return v;
+  changed=true;
+  return parts.map(part=>part.trim()===source?(target||''):part).join('')
+   .split(/[,;\n]+/).map(part=>part.trim()).filter(Boolean).join('; ');
+ };
+ const replaceProperty=(obj,prop)=>{
+  if(!Object.prototype.hasOwnProperty.call(obj,prop))return;
+  obj[prop]=replaceValue(obj[prop]);
+ };
+ replaceProperty(r,actualKey);
+ if(key==='activities')replaceProperty(r,'activities');
  if(key==='locations'&&r.location===source){r.location=target||'';changed=true}
- // Les champs importés historiques participent aussi à la recherche et aux listes.
- if(r.mmpOriginalFields){const original={...r.mmpOriginalFields};for(const field of MR_LEGACY_FIELDS[key]||[]){let v=original[field];if(typeof v==='string'){let parts=v.split(/([,;\n]+)/);let hit=false;parts=parts.map(part=>{if(part.trim()===source){hit=true;return target||''}return part});if(hit){changed=true;original[field]=parts.join('').replace(/^[,;\n\s]+|[,;\n\s]+$/g,'')}}else if(Array.isArray(v)){let n=replaceArray(v);if(v.some(item=>item===source))original[field]=n}}r.mmpOriginalFields=original}
- if(changed)r.updatedAt=new Date().toISOString();return {record:r,changed};
+ if(key==='interventions')replaceProperty(r,'relieving');
+ if(r.mmpOriginalFields&&typeof r.mmpOriginalFields==='object'&&!Array.isArray(r.mmpOriginalFields)){
+  const original={...r.mmpOriginalFields};
+  for(const [field,value] of Object.entries(original)){
+   const f=norm(field);
+   let eligible=known.includes(f)||
+    (key==='activities'&&f.startsWith('activitessignificativ'))||
+    (key==='medications'&&/^(medicaments|traitementsmedicamenteux|prisesmedicamenteuses)/.test(f));
+   if(!eligible&&(key==='medications'||key==='interventions')&&/^(facteursinefficaces|facteurssoulageants)$/.test(f)){
+    // Les deux catégories partagent ces champs MMP ; modifier uniquement
+    // les termes de la catégorie affichée.
+    eligible=(key==='medications'?isMedication(source):!isMedication(source));
+   }
+   if(eligible)original[field]=replaceValue(value);
+  }
+  if(changed)r.mmpOriginalFields=original;
+ }
+ if(changed){
+  // Détails d'efficacité liés au libellé, lorsqu'ils existent.
+  if((key==='medications'||key==='interventions')&&r.treatmentDetails?.[key]){
+   const treatmentDetails={...r.treatmentDetails},details={...treatmentDetails[key]};
+   if(Object.prototype.hasOwnProperty.call(details,source)){
+    if(target&&!Object.prototype.hasOwnProperty.call(details,target))details[target]=details[source];
+    delete details[source];
+    treatmentDetails[key]=details;r.treatmentDetails=treatmentDetails;
+   }
+  }
+  r.updatedAt=new Date().toISOString();
+ }
+ return {record:r,changed};
 }
 function mrWireFactorManager(data){
- const group=$('#factor-group'),source=$('#factor-source'),action=$('#factor-action'),target=$('#factor-target'),wrap=$('#factor-target-wrap'),feedback=$('#factor-feedback');if(!group)return;
+ const group=$('#factor-group'),source=$('#factor-source'),action=$('#factor-action'),wrap=$('#factor-target-wrap'),feedback=$('#factor-feedback');if(!group)return;
  const fill=()=>{const values=mrSort(data.flatMap(r=>mrHistoricalValues(r,group.value)));source.innerHTML=values.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');updateTarget()};
- const updateTarget=()=>{wrap.hidden=action.value==='delete';if(action.value==='rename'){target.outerHTML;wrap.innerHTML='<label for="factor-new-name">Nouveau nom</label><input id="factor-new-name" maxlength="120" placeholder="Nouveau nom du facteur">'}else{wrap.innerHTML='<label for="factor-target">Facteur de destination</label><select id="factor-target"></select>';const t=$('#factor-target');t.innerHTML=mrFactorValues(data,group.value).filter(v=>v!==source.value).map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('')}};
+ const updateTarget=()=>{
+  wrap.hidden=action.value==='delete';
+  if(action.value==='rename'){
+   wrap.innerHTML='<label for="factor-new-name">Nouveau nom</label><input id="factor-new-name" maxlength="120" placeholder="Nouveau nom du facteur">';
+  }else{
+   wrap.innerHTML='<label for="factor-target">Facteur de destination</label><select id="factor-target"></select>';
+   const t=$('#factor-target');
+   t.innerHTML=mrFactorValues(data,group.value).filter(v=>v!==source.value).map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  }
+ };
  group.onchange=fill;source.onchange=updateTarget;action.onchange=updateTarget;fill();
  $('#factor-apply').onclick=async()=>{
   const key=group.value,old=source.value,mode=action.value,dest=mode==='delete'?null:mode==='rename'?($('#factor-new-name')?.value||'').trim():$('#factor-target')?.value;
-  if(!old)return alert('Choisis un facteur.');if(mode!=='delete'&&(!dest||dest===old))return alert('Choisis un autre nom ou une destination.');
-  const modifications=data.map(r=>mrReplaceFactor(r,key,old,dest));const affected=modifications.filter(x=>x.changed);
-  if(!affected.length)return alert('Aucun enregistrement ne contient ce facteur.');
+  if(!old)return alert('Choisis un facteur.');
+  if(mode!=='delete'&&(!dest||dest===old))return alert('Choisis un autre nom ou une destination.');
+  const modifications=data.map(r=>mrReplaceFactor(r,key,old,dest));
+  const affected=modifications.filter(x=>x.changed);
+  if(!affected.length)return alert('Ce facteur n’est présent dans aucun champ modifiable. Aucun changement effectué.');
   const verb=mode==='delete'?'Supprimer':mode==='rename'?'Renommer':'Fusionner';
   if(!confirm(`${verb} « ${old} » ${dest?'vers « '+dest+' » ':''} dans ${affected.length} enregistrement(s) ? Une sauvegarde complète sera téléchargée avant modification.`))return;
   download('Mon_Ressenti_avant_correction_'+dateLocal()+'.json',JSON.stringify({format:'mon-ressenti',schemaVersion:1,exportedAt:new Date().toISOString(),records:data},null,2),'application/json');
-  const t=db.transaction(STORE,'readwrite'),store=t.objectStore(STORE);affected.forEach(x=>store.put(x.record));
-  try{await new Promise((resolve,reject)=>{t.oncomplete=resolve;t.onerror=()=>reject(t.error);t.onabort=()=>reject(t.error)});feedback.textContent=`${affected.length} enregistrement(s) mis à jour. Sauvegarde préalable téléchargée.`;setTimeout(()=>show('settings'),600)}catch(e){alert('Modification interrompue : '+e.message)}
+  const t=db.transaction(STORE,'readwrite'),store=t.objectStore(STORE);
+  affected.forEach(x=>store.put(x.record));
+  try{
+   await new Promise((resolve,reject)=>{t.oncomplete=resolve;t.onerror=()=>reject(t.error);t.onabort=()=>reject(t.error)});
+   feedback.textContent=`${affected.length} enregistrement(s) mis à jour. Sauvegarde préalable téléchargée.`;
+   setTimeout(()=>show('settings'),600);
+  }catch(e){alert('Modification interrompue : '+e.message)}
  };
 }
-function settings(){return heading('Réglages','Sauvegardes et importations.')+`<div class="card"><h2>Sauvegarder et restaurer</h2><p class="muted">Sauvegarde complète JSON. La restauration fusionne par identifiant.</p><div class="actions"><button class="button" id="backup">Sauvegarder JSON</button><button class="button secondary" id="csv">Exporter CSV</button><label class="button secondary" for="restore">Importer JSON</label><input type="file" id="restore" accept=".json,application/json" hidden></div></div><div class="card"><h2>Migration MMP · transfert définitif</h2><p>Importer le fichier JSON privé préparé à partir du rapport complet du 13.10.2026. Aucun document n’est envoyé à GitHub.</p><label class="button" for="mmpfile">Choisir le fichier MMP JSON</label><input type="file" id="mmpfile" accept=".json,application/json" hidden><div id="mmp-preview" class="footnote"></div><p class="footnote">Les heures MMP disponibles sont conservées. Les notes des bilans non encore extraites du PDF restent inconnues. Les champs originaux sont conservés.</p><button class="button secondary" id="mmpclear">Effacer uniquement les imports MMP</button></div><div class="card"><h2>Gestion des facteurs</h2><p class="muted">Renommer, fusionner ou supprimer un terme dans tous les enregistrements. Une sauvegarde JSON est téléchargée avant toute modification.</p><label for="factor-group">Groupe</label><select id="factor-group">${Object.entries(MR_GROUPS).map(([k,g])=>`<option value="${k}">${esc(g.title)}</option>`).join('')}</select><label for="factor-source">Facteur à modifier</label><select id="factor-source"></select><label for="factor-action">Opération</label><select id="factor-action"><option value="merge">Fusionner avec un autre facteur</option><option value="rename">Renommer</option><option value="delete">Supprimer le facteur</option></select><div id="factor-target-wrap"><label for="factor-target">Facteur de destination</label><select id="factor-target"></select></div><button class="button" type="button" id="factor-apply">Appliquer aux enregistrements</button><p class="muted" id="factor-feedback"></p></div><div class="card"><h2>À propos</h2><p>Mon Ressenti · Observer pour comprendre. Comprendre pour agir. Agir pour mieux vivre. · v0.2.59</p><p class="muted">Journal personnel, pas une application médicale. Stockage local.</p></div>`}
+function settings(){return heading('Réglages','Sauvegardes et importations.')+`<div class="card"><h2>Sauvegarder et restaurer</h2><p class="muted">Sauvegarde complète JSON. La restauration fusionne par identifiant.</p><div class="actions"><button class="button" id="backup">Sauvegarder JSON</button><button class="button secondary" id="csv">Exporter CSV</button><label class="button secondary" for="restore">Importer JSON</label><input type="file" id="restore" accept=".json,application/json" hidden></div></div><div class="card"><h2>Migration MMP · transfert définitif</h2><p>Importer le fichier JSON privé préparé à partir du rapport complet du 13.10.2026. Aucun document n’est envoyé à GitHub.</p><label class="button" for="mmpfile">Choisir le fichier MMP JSON</label><input type="file" id="mmpfile" accept=".json,application/json" hidden><div id="mmp-preview" class="footnote"></div><p class="footnote">Les heures MMP disponibles sont conservées. Les notes des bilans non encore extraites du PDF restent inconnues. Les champs originaux sont conservés.</p><button class="button secondary" id="mmpclear">Effacer uniquement les imports MMP</button></div><div class="card"><h2>Gestion des facteurs</h2><p class="muted">Renommer, fusionner ou supprimer un terme dans tous les enregistrements. Une sauvegarde JSON est téléchargée avant toute modification.</p><label for="factor-group">Groupe</label><select id="factor-group">${Object.entries(MR_GROUPS).map(([k,g])=>`<option value="${k}">${esc(g.title)}</option>`).join('')}</select><label for="factor-source">Facteur à modifier</label><select id="factor-source"></select><label for="factor-action">Opération</label><select id="factor-action"><option value="merge">Fusionner avec un autre facteur</option><option value="rename">Renommer</option><option value="delete">Supprimer le facteur</option></select><div id="factor-target-wrap"><label for="factor-target">Facteur de destination</label><select id="factor-target"></select></div><button class="button" type="button" id="factor-apply">Appliquer aux enregistrements</button><p class="muted" id="factor-feedback"></p></div><div class="card"><h2>À propos</h2><p>Mon Ressenti · Observer pour comprendre. Comprendre pour agir. Agir pour mieux vivre. · v0.2.60</p><p class="muted">Journal personnel, pas une application médicale. Stockage local.</p></div>`}
 function download(filename,content,mime){let a=document.createElement('a'),url=URL.createObjectURL(new Blob([content],{type:mime}));a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}function csvEscape(x){return '"'+String(x??'').replace(/"/g,'""')+'"'}
 
 // Rapport v0.2.41 : l'application reste en mémoire, avec ses événements et sa base locale.
@@ -394,4 +460,4 @@ document.querySelectorAll('[data-report-mode]').forEach(reportButton=>reportButt
   r.customGroups={};document.querySelectorAll('[data-custom]').forEach(g=>r.customGroups[g.dataset.custom]=[...g.querySelectorAll('.mr-choice input:checked')].map(i=>i.value));
  }
  await put(r);editing=null;const dest=old?returnPage:'home',scroll=returnScroll;await show(dest);if(old&&dest==='journal')requestAnimationFrame(()=>window.scrollTo(0,scroll))};if($('#mmpfile'))$('#mmpfile').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let j=JSON.parse(await f.text());if(j.format!=='mon-ressenti-mmp-migration'||j.schemaVersion!==1||!Array.isArray(j.records))throw Error('Format MMP non reconnu');if(j.records.some(r=>!r||r.source!=='mmp'||typeof r.id!=='string'||!['pain','daily'].includes(r.type)||!/^\d{4}-\d\d-\d\d/.test(r.when)||!(r.score===null||(Number.isInteger(r.score)&&r.score>=0&&r.score<=10))))throw Error('Enregistrements invalides');let pain=j.records.filter(r=>r.type==='pain').length,daily=j.records.length-pain,unknown=j.records.filter(r=>r.score===null).length;$('#mmp-preview').textContent=`${pain} ressentis, ${daily} bilans, ${unknown} scores inconnus. Source : ${j.sourceDate||'non précisée'}.`;if(!confirm(`Importer ${j.records.length} entrées MMP ? Les imports MMP existants seront remplacés, les saisies manuelles conservées. ${unknown} scores restent inconnus.`))return;let existing=await all();let backup={format:'mon-ressenti',schemaVersion:1,exportedAt:new Date().toISOString(),records:existing};download('Mon_Ressenti_avant_import_'+dateLocal()+'.json',JSON.stringify(backup,null,2),'application/json');let t=db.transaction(STORE,'readwrite'),s=t.objectStore(STORE);existing.filter(r=>r.source==='mmp').forEach(r=>s.delete(r.id));j.records.forEach(r=>s.put(r));await new Promise((resolve,reject)=>{t.oncomplete=resolve;t.onerror=()=>reject(t.error);t.onabort=()=>reject(t.error)});alert(`Import terminé : ${pain} ressentis et ${daily} bilans. Sauvegarde préalable téléchargée.`);show('home')}catch(err){alert('Import MMP refusé : '+err.message)}};if($('#mmpclear'))$('#mmpclear').onclick=async()=>{let d=(await all()).filter(r=>r.source==='mmp');if(!d.length)return alert('Aucun import MMP');if(!confirm(`Effacer les ${d.length} entrées MMP ? Les saisies manuelles resteront intactes.`))return;let t=db.transaction(STORE,'readwrite'),s=t.objectStore(STORE);d.forEach(r=>s.delete(r.id));await new Promise((resolve,reject)=>{t.oncomplete=resolve;t.onerror=()=>reject(t.error)});show('settings')};if($('#backup'))$('#backup').onclick=async()=>{let d=await all();download('Mon_Ressenti_sauvegarde_'+dateLocal()+'.json',JSON.stringify({format:'mon-ressenti',schemaVersion:1,exportedAt:new Date().toISOString(),records:d},null,2),'application/json')};if($('#csv'))$('#csv').onclick=async()=>{let d=await all(),keys=['id','type','when','score','location','features','symptoms','aggravating','medications','interventions','moment','environment','customGroups','relieving','tags','note','source'];download('Mon_Ressenti_'+dateLocal()+'.csv','\ufeff'+keys.join(';')+'\n'+d.map(r=>keys.map(k=>csvEscape(Array.isArray(r[k])?r[k].join(' | '):(r[k]&&typeof r[k]==='object'?JSON.stringify(r[k]):r[k]))).join(';')).join('\n'),'text/csv;charset=utf-8')};if($('#restore'))$('#restore').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let j=JSON.parse(await f.text());if(j.format!=='mon-ressenti'||j.schemaVersion!==1||!Array.isArray(j.records))throw Error('Format de sauvegarde non reconnu');if(j.records.some(r=>!r||typeof r.id!=='string'||typeof r.type!=='string'||!r.type.trim()||typeof r.when!=='string'||!(r.score===null||(Number.isInteger(r.score)&&r.score>=0&&r.score<=10))))throw Error('Une ou plusieurs entrées sont invalides');if(!confirm(`Importer ${j.records.length} entrées ? Les identifiants existants identiques seront remplacés.`))return;for(let r of j.records)await put(r);alert('Import terminé : '+j.records.length+' entrées traitées.');show('settings')}catch(err){alert('Import refusé : '+err.message)}}}
-document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{editing=null;window.nextType=null;show(b.dataset.page)});(async()=>{try{db=await openDB();await show('home');if('serviceWorker'in navigator&&location.protocol==='https:')navigator.serviceWorker.register('./sw.js?v=0.2.58',{updateViaCache:'none'}).then(r=>r.update()).catch(()=>{})}catch(e){$('#screen').innerHTML='<div class="warn">Impossible d’ouvrir le stockage local. Vérifie les autorisations du navigateur et évite la navigation privée.</div>';console.error(e)}})();
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{editing=null;window.nextType=null;show(b.dataset.page)});(async()=>{try{db=await openDB();await show('home');if('serviceWorker'in navigator&&location.protocol==='https:')navigator.serviceWorker.register('./sw.js?v=0.2.60',{updateViaCache:'none'}).then(r=>r.update()).catch(()=>{})}catch(e){$('#screen').innerHTML='<div class="warn">Impossible d’ouvrir le stockage local. Vérifie les autorisations du navigateur et évite la navigation privée.</div>';console.error(e)}})();
