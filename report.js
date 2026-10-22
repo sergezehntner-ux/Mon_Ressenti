@@ -88,6 +88,40 @@ const doc=new DOMParser().parseFromString(reportHtml,'text/html');
 const sheets=[...doc.querySelectorAll('article.sheet')];
 const cover=sheets[0], details=sheets.slice(1);
 const noteRows=sorted.filter(r=>typeof r.note==='string'&&r.note.trim()).reverse();
+// v0.2.61 : constats reproductibles, illustrés par des enregistrements exacts.
+// Aucune génération externe, aucune modification de données.
+const exampleFor=(records, key, value)=>records.find(r=>field(r,key).includes(value));
+const sourceExample=(r,key,value)=>{
+ if(!r)return '<span class="hint">Aucun exemple disponible.</span>';
+ const date=fr(day(r.when))+(String(r.when).length>10?' à '+esc(String(r.when).slice(11,16)):'');
+ const raw=field(r,key).find(v=>v===value);
+ const originalNote=typeof r.note==='string'&&r.note.trim()?`<div class="mr-analysis-quote">Remarque originale : « ${esc(r.note)} »</div>`:'';
+ return `<div class="mr-analysis-example"><b>Exemple du ${date}${Number.isFinite(r.score)?' · '+r.score+'/10':''}</b> — ${esc(value)}${raw===undefined?'':' (champ enregistré)'}${originalNote}</div>`;
+};
+const analysisBlocks=[];
+for(const [key,title,counts] of [
+ ['features','Caractéristiques fréquemment consignées',features],
+ ['aggravating','Facteurs aggravants déclarés',aggr],
+ ['relieving','Facteurs soulageants déclarés',relief],
+ ['symptoms','Autres symptômes associés',frequencies(pain,'symptoms')]
+]){
+ if(!counts.length)continue;
+ const [name,count]=counts[0];
+ const matching=pain.filter(r=>field(r,key).includes(name));
+ const example=matching[0];
+ analysisBlocks.push(`<div class="mr-analysis-item"><b>${esc(title)}</b><p>« ${esc(name)} » figure dans ${count} enregistrement(s) sur ${pain.length} ressentis consignés. Il s’agit de mentions, sans conclusion sur la cause ou la fréquence réelle.</p>${sourceExample(example,key,name)}</div>`);
+}
+if(daily.length){
+ const valid=daily.filter(r=>Number.isFinite(r.score));
+ if(valid.length){const example=valid[0];analysisBlocks.push(`<div class="mr-analysis-item"><b>Bilans quotidiens</b><p>${valid.length} bilan(s) avec une note ; moyenne ${nfmt(mean(valid.map(r=>r.score)))}/10. Cette note décrit les capacités déclarées, pas l’intensité de la douleur.</p><div class="mr-analysis-example"><b>Exemple du ${fr(day(example.when))} · ${example.score}/10</b>${example.note?.trim()?`<div class="mr-analysis-quote">Remarque originale : « ${esc(example.note)} »</div>`:''}</div></div>`)}
+}
+const analysisSection=doc.createElement('section');analysisSection.className='section mr-analysis';
+analysisSection.innerHTML='<h2>Analyse descriptive détaillée — avec exemples réels</h2><p class="hint">Recalculée à chaque création du rapport, à partir des seuls enregistrements de la période. Les exemples reproduisent les valeurs et remarques saisies, sans embellissement, reformulation ni interprétation. Aucune causalité n’est établie.</p>'+(analysisBlocks.join('')||'<p>Données insuffisantes pour produire des constats illustrés.</p>');
+// Insérer dans la partie détaillée, pas sur la page de garde.
+if(details[0])details[0].insertBefore(analysisSection,details[0].querySelector('.report-foot'));
+const analysisCss=doc.createElement('style');analysisCss.textContent=`.mr-analysis{font-size:10px}.mr-analysis-item{margin:7px 0;break-inside:avoid;page-break-inside:avoid}.mr-analysis-item p{margin:3px 0}.mr-analysis-example{background:#eef7f6;border-left:2px solid #17839a;padding:5px 7px;margin:3px 0;font-size:9px}.mr-analysis-quote{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:3px}@media print{.mr-analysis{font-size:8px}.mr-analysis-item{margin:4px 0}.mr-analysis-example{font-size:8px;padding:3px 5px}}`;
+doc.head.appendChild(analysisCss);
+
 const factorContext=r=>[
   ['Aggravants',field(r,'aggravating')],['Soulageants',field(r,'relieving')],
   ['Inefficaces',field(r,'ineffective')]
@@ -143,7 +177,7 @@ style.textContent+=`/* v0.2.56 : remarques lisibles, une seule colonne */
 @media print{.mr-remarks{font-size:9px}.mr-remark-context{font-size:8px}.mr-remark-text{font-size:9px}}
 `;
 doc.body.setAttribute('data-mr-report-mode',mode);
-const toolbar=doc.querySelector('.toolbar span');if(toolbar)toolbar.textContent='Rapport local · v0.2.57 · '+({cover:'Page de garde',detail:'Rapport',all:'Ensemble'}[mode]||'Ensemble');
+const toolbar=doc.querySelector('.toolbar span');if(toolbar)toolbar.textContent='Rapport local · v0.2.61 · '+({cover:'Page de garde',detail:'Rapport',all:'Ensemble'}[mode]||'Ensemble');
 return '<!doctype html>\n'+doc.documentElement.outerHTML;
 }
 window.MonRessentiReport={make};
