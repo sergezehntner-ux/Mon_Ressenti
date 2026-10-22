@@ -88,11 +88,11 @@ const doc=new DOMParser().parseFromString(reportHtml,'text/html');
 const sheets=[...doc.querySelectorAll('article.sheet')];
 const cover=sheets[0], details=sheets.slice(1);
 const noteRows=sorted.filter(r=>typeof r.note==='string'&&r.note.trim()).reverse();
-// v0.2.62 : six paragraphes descriptifs recalculés localement, avec exemples fidèles.
+// v0.2.63 : six paragraphes descriptifs recalculés localement, avec exemples fidèles.
 const formatExample=(r,key,value)=>{
  if(!r)return '<p class="mr-analysis-example">Aucun exemple disponible dans les enregistrements de la période.</p>';
  const when=fr(day(r.when))+(String(r.when).length>10?' à '+esc(String(r.when).slice(11,16)):'');
- const note=typeof r.note==='string'&&r.note.trim()?`<div class="mr-analysis-quote">Remarque originale : « ${esc(r.note)} »</div>`:'';
+ const note='';
  return `<div class="mr-analysis-example"><b>Exemple du ${when}${Number.isFinite(r.score)?' · '+r.score+'/10':''}</b>${value?' — '+esc(value):''}${note}</div>`;
 };
 const delta=(a,b)=>a===null||b===null?'non calculable':`${b>=a?'une hausse':'une baisse'} de ${nfmt(Math.abs(b-a))} point(s)`;
@@ -129,56 +129,58 @@ paragraphs.push({
 paragraphs.push({
  title:'6. Synthèse et points à suivre',
  body:`Pour cette période de ${nDays} jour(s), ${pain.length} ressentis et ${daily.length} bilans quotidiens ont été consignés. ${painQ.n?`L’intensité moyenne déclarée est de ${nfmt(painQ.avg)}/10.`:''} ${dailyQ.n?`La moyenne des capacités déclarées est de ${nfmt(dailyQ.avg)}/10.`:''} ${features.length?`La caractéristique la plus mentionnée est ${top(features)}.`:''} Ces indicateurs offrent des repères pour comparer les prochains rapports, à condition de tenir compte du nombre de saisies et de la période choisie. Ils ne constituent ni un diagnostic ni une preuve de causalité.`,
- example:formatExample([...pain,...daily].find(r=>typeof r.note==='string'&&r.note.trim()),'','')
+ example:''
 });
+const latestRemarks=noteRows.slice(0,3);
+if(latestRemarks.length){
+ paragraphs.push({title:'7. Événements particuliers consignés',
+ body:`${latestRemarks.length} remarque(s) récente(s) sont reproduite(s) ci-dessous, car elles documentent des circonstances ou événements particuliers. Il ne s’agit ni d’exemples décoratifs ni d’une interprétation de ces événements.`,
+ example:latestRemarks.map(r=>`<div class="mr-analysis-example"><b>${esc(fr(day(r.when)))}${String(r.when).length>10?' · '+esc(String(r.when).slice(11,16)):''} · ${r.type==='daily'?'Bilan':'Ressenti'}${Number.isFinite(r.score)?' · '+r.score+'/10':''}</b><div class="mr-analysis-quote">${esc(r.note)}</div></div>`).join('')
+ });
+}
 const analysisCss=doc.createElement('style');
 analysisCss.textContent=`.mr-analysis-page .mr-analysis-intro{font-size:10px;line-height:1.5;color:#59767d}.mr-analysis-item{margin:16px 0 22px;break-inside:avoid;page-break-inside:avoid}.mr-analysis-item h3{font-size:14px;color:#075b82;margin:0 0 9px}.mr-analysis-item p{font-size:12px;line-height:1.55;margin:0 0 9px}.mr-analysis-example{font-size:10px;line-height:1.4;background:#eef7f6;border-left:2px solid #17839a;padding:7px 9px;overflow-wrap:anywhere}.mr-analysis-quote{white-space:pre-wrap;margin-top:5px}@media print{.mr-analysis-item{margin:11px 0 15px}.mr-analysis-item h3{font-size:12px;margin-bottom:6px}.mr-analysis-item p{font-size:10px;line-height:1.4;margin-bottom:6px}.mr-analysis-example{font-size:9px;padding:5px 7px}.mr-analysis-page .mr-analysis-intro{font-size:9px}}`;
 doc.head.appendChild(analysisCss);
-const addAnalysisPage=(parts,index)=>{
- const sheet=doc.createElement('article');sheet.className='sheet second mr-analysis-page';
- sheet.innerHTML=`<section class="section"><h2>Analyse descriptive de la période${index===1?'':' — suite'}</h2>${index===1?'<p class="mr-analysis-intro">Texte recalculé automatiquement à chaque rapport à partir des seuls enregistrements de la période. Exemples reproduits sans embellissement ni reformulation. Observations descriptives, sans causalité déduite.</p>':''}${parts.map(p=>`<div class="mr-analysis-item"><h3>${p.title}</h3><p>${p.body}</p>${p.example}</div>`).join('')}</section><div class="report-foot"><span>${esc(displayName)} · ${fr(first)} – ${fr(last)}</span><span></span><span>Observations personnelles · Pas de diagnostic médical</span></div>`;
- if(details[0])details[0].before(sheet);else cover.after(sheet);
-};
-if(mode!=='cover'){addAnalysisPage(paragraphs.slice(0,3),1);addAnalysisPage(paragraphs.slice(3),2);}
-// Synthèse compacte réservée à la page de garde, sans dupliquer les exemples.
-if(mode==='cover'){
- const summary=doc.createElement('section');summary.className='section mr-analysis-summary';
- summary.innerHTML='<h2>Synthèse descriptive</h2><p>'+[
-  features.length?'Caractéristique la plus citée : '+esc(features[0][0])+' ('+features[0][1]+' mentions).':'',
-  aggr.length?'Facteur aggravant le plus cité : '+esc(aggr[0][0])+' ('+aggr[0][1]+' mentions).':'',
-  relief.length?'Facteur soulageant le plus cité : '+esc(relief[0][0])+' ('+relief[0][1]+' mentions).':''
- ].filter(Boolean).join(' · ')+'</p><p class="hint">Constats descriptifs uniquement ; aucune causalité déduite.</p>';
- cover.insertBefore(summary,cover.querySelector('.report-foot'));
-}
+// Page de garde = en-tête, évolution globale, analyse rédigée, événements particuliers.
+const coverAnalysis=doc.createElement('section');
+coverAnalysis.className='section mr-analysis-page';
+coverAnalysis.innerHTML='<h2>Analyse descriptive de la période</h2><p class="mr-analysis-intro">Calculée à chaque impression sur les enregistrements disponibles. Les trois dernières remarques, lorsqu’elles existent, sont citées sans modification et séparées des exemples statistiques.</p>'+
+ paragraphs.map(p=>`<div class="mr-analysis-item"><h3>${p.title}</h3><p>${p.body}</p>${p.example}</div>`).join('');
+// Retirer les anciennes analyses succinctes de la couverture : pas de répétitions.
+const sections=[...cover.querySelectorAll(':scope > section.section')];
+sections.forEach(el=>{
+ const h=el.querySelector('h2')?.textContent?.trim()||'';
+ if(['Interprétation personnelle des ressentis','Évolution ressentie des symptômes','Tendances et observations personnelles'].includes(h))el.remove();
+});
+cover.insertBefore(coverAnalysis,cover.querySelector('.report-foot'));
 
-
-const factorContext=r=>[
-  ['Aggravants',field(r,'aggravating')],['Soulageants',field(r,'relieving')],
-  ['Inefficaces',field(r,'ineffective')]
-].filter(([,v])=>v.length).map(([k,v])=>k+' : '+v.join(', ')).join(' · ');
-const remarkHtml=r=>`<div class="mr-remark"><b>${esc(fr(day(r.when)))}${r.when.length>10?' · '+esc(r.when.slice(11,16)):''} · ${r.type==='daily'?'Bilan':'Ressenti'}${Number.isFinite(r.score)?' · '+r.score+'/10':''}</b><div class="mr-remark-context">${esc(factorContext(r)||'Facteurs non renseignés')}</div><div class="mr-remark-text">${esc(r.note)}</div></div>`;
-const addRemarks=(sheet,items)=>{
-  const section=doc.createElement('section');section.className='section mr-remarks';
-  section.innerHTML='<h2>Remarques personnelles et contexte factoriel</h2><p class="hint">Textes originaux, sans reformulation ni interprétation. Contexte issu du même enregistrement.</p>'+items.map(remarkHtml).join('');
-  sheet.insertBefore(section,sheet.querySelector('.report-foot'));
-};
-if(mode==='cover'){
-  // Toutes les remarques sont ajoutées sans limitation. Le navigateur répartit
-  // ensuite les blocs selon la place réellement disponible, avant impression.
-  addRemarks(cover,noteRows);
-  [...doc.querySelectorAll('article.sheet')].filter(el=>el!==cover).forEach(el=>el.remove());
-}else if(mode==='detail'){
-  cover.remove();
-  const head=cover.querySelector('.report-head').cloneNode(true);
-  details[0].insertBefore(head,details[0].firstChild);
-}else{
-  // La couverture du dossier complet reste volontairement limitée à une page.
-  addRemarks(cover,noteRows.slice(0,1));
+// Rapport = en-tête, graphique d'évolution, synthèse courte, puis données factorielles.
+const reportSummary=doc.createElement('section');
+reportSummary.className='section mr-report-summary';
+reportSummary.innerHTML=`<h2>Synthèse descriptive</h2><p>Sur ${nDays} jours, ${pain.length} ressentis et ${daily.length} bilans ont été consignés. ${painQ.n?`Intensité moyenne : ${nfmt(painQ.avg)}/10, avec ${delta(painQ.a,painQ.b)} entre les premiers et derniers quarts.`:''} ${dailyQ.n?`Capacités moyennes : ${nfmt(dailyQ.avg)}/10.`:''} ${features.length?`Caractéristique la plus mentionnée : ${esc(features[0][0])} (${features[0][1]} mentions).`:''} Ces constats décrivent les données saisies et n’établissent aucune causalité.</p>`;
+const evolution=[...cover.querySelectorAll(':scope > section.section')].find(el=>/Évolution des ressentis et capacités/.test(el.querySelector('h2')?.textContent||''));
+const reportHeader=cover.querySelector('.report-head')?.cloneNode(true);
+const reportIdentity=cover.querySelector('.identity')?.cloneNode(true);
+const reportEvolution=evolution?.cloneNode(true);
+if(mode==='detail'){
+ // Insérer les éléments au début de la première feuille des données.
+ if(details[0]){
+  if(reportHeader)details[0].insertBefore(reportHeader,details[0].firstChild);
+  if(reportIdentity)details[0].insertBefore(reportIdentity,details[0].querySelector('.section'));
+  if(reportEvolution)details[0].insertBefore(reportEvolution,details[0].querySelector('.section'));
+  if(reportEvolution)reportEvolution.after(reportSummary);else details[0].insertBefore(reportSummary,details[0].querySelector('.section'));
+ }
+ cover.remove();
+}else if(mode==='all'){
+ // Ensemble : couverture complète + graphiques factuels ; supprimer la prose courte du Rapport.
+}else if(mode==='cover'){
+ details.forEach(el=>el.remove());
 }
+// Aucun catalogue complet des remarques : seules les trois dernières, dans leur rubrique.
 // Regrouper les petites sections du rapport, sans changer leurs contenus.
 // Pages initiales : A (graphiques), B (facteurs), C (traitements),
 // D (moment/environnement), E (activités). C suit B, E suit D.
-const detailSheets=[...doc.querySelectorAll('article.sheet')].filter(el=>el!==cover&&!el.classList.contains('mr-analysis-page'));
+const detailSheets=[...doc.querySelectorAll('article.sheet')].filter(el=>el!==cover);
 if(detailSheets.length===5){
   for(const [target,source] of [[detailSheets[1],detailSheets[2]],[detailSheets[3],detailSheets[4]]]){
     const foot=target.querySelector('.report-foot');
@@ -207,7 +209,7 @@ style.textContent+=`/* v0.2.56 : remarques lisibles, une seule colonne */
 @media print{.mr-remarks{font-size:9px}.mr-remark-context{font-size:8px}.mr-remark-text{font-size:9px}}
 `;
 doc.body.setAttribute('data-mr-report-mode',mode);
-const toolbar=doc.querySelector('.toolbar span');if(toolbar)toolbar.textContent='Rapport local · v0.2.62 · '+({cover:'Page de garde',detail:'Rapport',all:'Ensemble'}[mode]||'Ensemble');
+const toolbar=doc.querySelector('.toolbar span');if(toolbar)toolbar.textContent='Rapport local · v0.2.63 · '+({cover:'Page de garde',detail:'Rapport',all:'Ensemble'}[mode]||'Ensemble');
 return '<!doctype html>\n'+doc.documentElement.outerHTML;
 }
 window.MonRessentiReport={make};
