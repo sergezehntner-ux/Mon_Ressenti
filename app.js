@@ -86,7 +86,7 @@ const MR_GROUPS={
 const mrSort=arr=>[...new Set(arr.filter(Boolean))].sort((x,y)=>x.localeCompare(y,'fr',{sensitivity:'base'}));
 // Lecture seule des champs historiques MMP : leurs intitulés sont conservés tels quels.
 const MR_LEGACY_FIELDS={locations:['Endroit','Endroits'],symptoms:['Autres symptômes associés'],features:['Caractéristiques'],aggravating:['Facteurs Aggravants'],medications:['Médicaments'],interventions:['Interventions'],environment:['Environnements','Environnement'],tags:['Activités Significatives','Activités significatives']};
-// v0.2.65 : retrouver les valeurs des enregistrements MMP sans modifier les données.
+// v0.2.66 : retrouver les valeurs des enregistrements MMP sans modifier les données.
 // La clé d'affichage « activities » correspond à la clé de stockage « tags ».
 function mrHistoricalValues(r,key){
  const values=[];
@@ -249,7 +249,7 @@ function mrWireFactorManager(data){
   }catch(e){alert('Modification interrompue : '+e.message)}
  };
 }
-function settings(){return heading('Réglages','Sauvegardes et importations.')+`<div class="card"><h2>Sauvegarder et restaurer</h2><p class="muted">Sauvegarde complète JSON. La restauration fusionne par identifiant.</p><div class="actions"><button class="button" id="backup">Sauvegarder JSON</button><button class="button secondary" id="csv">Exporter CSV</button><label class="button secondary" for="restore">Importer JSON</label><input type="file" id="restore" accept=".json,application/json" hidden></div></div><div class="card"><h2>Migration MMP · transfert définitif</h2><p>Importer le fichier JSON privé préparé à partir du rapport complet du 13.10.2026. Aucun document n’est envoyé à GitHub.</p><label class="button" for="mmpfile">Choisir le fichier MMP JSON</label><input type="file" id="mmpfile" accept=".json,application/json" hidden><div id="mmp-preview" class="footnote"></div><p class="footnote">Les heures MMP disponibles sont conservées. Les notes des bilans non encore extraites du PDF restent inconnues. Les champs originaux sont conservés.</p><button class="button secondary" id="mmpclear">Effacer uniquement les imports MMP</button></div><div class="card"><h2>Gestion des facteurs</h2><p class="muted">Renommer, fusionner ou supprimer un terme dans tous les enregistrements. Une sauvegarde JSON est téléchargée avant toute modification.</p><label for="factor-group">Groupe</label><select id="factor-group">${Object.entries(MR_GROUPS).map(([k,g])=>`<option value="${k}">${esc(g.title)}</option>`).join('')}</select><label for="factor-source">Facteur à modifier</label><select id="factor-source"></select><label for="factor-action">Opération</label><select id="factor-action"><option value="merge">Fusionner avec un autre facteur</option><option value="rename">Renommer</option><option value="delete">Supprimer le facteur</option></select><div id="factor-target-wrap"><label for="factor-target">Facteur de destination</label><select id="factor-target"></select></div><button class="button" type="button" id="factor-apply">Appliquer aux enregistrements</button><p class="muted" id="factor-feedback"></p></div><div class="card"><h2>À propos</h2><p>Mon Ressenti · Observer pour comprendre. Comprendre pour agir. Agir pour mieux vivre. · v0.2.65</p><p class="muted">Journal personnel, pas une application médicale. Stockage local.</p></div>`}
+function settings(){return heading('Réglages','Sauvegardes et importations.')+`<div class="card"><h2>Sauvegarder et restaurer</h2><p class="muted">Sauvegarde complète JSON. La restauration fusionne par identifiant.</p><div class="actions"><button class="button" id="backup">Sauvegarder JSON</button><button class="button secondary" id="csv">Exporter CSV</button><label class="button secondary" for="restore">Importer JSON</label><input type="file" id="restore" accept=".json,application/json" hidden></div></div><div class="card"><h2>Migration MMP · transfert définitif</h2><p>Importer le fichier JSON privé préparé à partir du rapport complet du 13.10.2026. Aucun document n’est envoyé à GitHub.</p><label class="button" for="mmpfile">Choisir le fichier MMP JSON</label><input type="file" id="mmpfile" accept=".json,application/json" hidden><div id="mmp-preview" class="footnote"></div><p class="footnote">Les heures MMP disponibles sont conservées. Les notes des bilans non encore extraites du PDF restent inconnues. Les champs originaux sont conservés.</p><button class="button secondary" id="mmpclear">Effacer uniquement les imports MMP</button></div><div class="card"><h2>Gestion des facteurs</h2><p class="muted">Renommer, fusionner ou supprimer un terme dans tous les enregistrements. Une sauvegarde JSON est téléchargée avant toute modification.</p><label for="factor-group">Groupe</label><select id="factor-group">${Object.entries(MR_GROUPS).map(([k,g])=>`<option value="${k}">${esc(g.title)}</option>`).join('')}</select><label for="factor-source">Facteur à modifier</label><select id="factor-source"></select><label for="factor-action">Opération</label><select id="factor-action"><option value="merge">Fusionner avec un autre facteur</option><option value="rename">Renommer</option><option value="delete">Supprimer le facteur</option></select><div id="factor-target-wrap"><label for="factor-target">Facteur de destination</label><select id="factor-target"></select></div><button class="button" type="button" id="factor-apply">Appliquer aux enregistrements</button><p class="muted" id="factor-feedback"></p></div><div class="card"><h2>À propos</h2><p>Mon Ressenti · Observer pour comprendre. Comprendre pour agir. Agir pour mieux vivre. · v0.2.66</p><p class="muted">Journal personnel, pas une application médicale. Stockage local.</p></div>`}
 function download(filename,content,mime){let a=document.createElement('a'),url=URL.createObjectURL(new Blob([content],{type:mime}));a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}function csvEscape(x){return '"'+String(x??'').replace(/"/g,'""')+'"'}
 
 // Rapport v0.2.41 : l'application reste en mémoire, avec ses événements et sa base locale.
@@ -257,63 +257,94 @@ let mrReportSaved=null;
 window.MonRessentiShowReport=function(html){
   if(mrReportSaved)return;
   const doc=new DOMParser().parseFromString(html,'text/html');
-  const style=doc.querySelector('style');
+  const styles=[...doc.querySelectorAll('style')];
   const original=document.createDocumentFragment();
   while(document.body.firstChild)original.appendChild(document.body.firstChild);
   const reportStyle=document.createElement('style');
-  reportStyle.textContent=style?style.textContent:'';
+  reportStyle.textContent=styles.map(s=>s.textContent).join('\n');
   document.head.appendChild(reportStyle);
   const title=document.title;
   mrReportSaved={original,reportStyle,title};
   while(doc.body.firstChild)document.body.appendChild(doc.body.firstChild);
   document.body.dataset.mrReportMode=doc.body.dataset.mrReportMode||'all';
-  // Pagination de la page de garde fondée sur la hauteur mesurée des remarques,
-  // plutôt que sur un nombre arbitraire de lignes ou de remarques.
-  if(document.body.dataset.mrReportMode==='cover'){
-    const first=document.querySelector('article.sheet');
-    const section=first?.querySelector('.mr-remarks');
-    if(first&&section){
-      const blocks=[...section.querySelectorAll('.mr-remark')];
-      const foot=first.querySelector('.report-foot');
-      const mm=px=>px*96/25.4;
-      // La largeur d'impression est 180 mm (A4, marges et padding inclus).
-      const maxY=mm(248);
-      const newPage=()=>{
-        const page=document.createElement('article');
-        page.className='sheet second mr-remark-page';
-        const sec=document.createElement('section');sec.className='section mr-remarks';
-        sec.innerHTML='<h2>Remarques personnelles et contexte factoriel</h2><p class="hint">Textes originaux, sans reformulation ni interprétation. Contexte issu du même enregistrement.</p>';
-        page.appendChild(sec);
-        const f=document.createElement('div');f.className='report-foot';page.appendChild(f);
-        document.body.insertBefore(page,document.querySelector('script'));
-        return {page,sec};
-      };
-      // Mesurer à la largeur de la feuille en style imprimé; déplacer seulement
-      // les blocs entiers pour conserver date, facteurs et texte ensemble.
-      const ruler=document.createElement('div');
-      ruler.style.cssText='position:absolute;visibility:hidden;width:180mm;font:9px Arial,sans-serif;line-height:1.3';
-      document.body.appendChild(ruler);
-      let target=section, current=first;
-      for(const block of blocks){
-        ruler.innerHTML='';const test=block.cloneNode(true);ruler.appendChild(test);
-        const blockHeight=Math.max(test.getBoundingClientRect().height,block.getBoundingClientRect().height)+mm(1.8);
-        const top=target.getBoundingClientRect().top-current.getBoundingClientRect().top;
-        const occupied=top+target.getBoundingClientRect().height;
-        if(occupied+blockHeight>maxY && target.querySelector('.mr-remark')){
-          const next=newPage();target=next.sec;current=next.page;
-        }
-        target.appendChild(block);
-      }
-      ruler.remove();
-      const pages=[...document.querySelectorAll('article.sheet')];
-      pages.forEach((page,i)=>{
-        const f=page.querySelector('.report-foot');if(!f)return;
-        const spans=f.querySelectorAll('span');
-        if(spans.length>=2)spans[1].textContent=`Page ${i+1} / ${pages.length}`;
-        else f.innerHTML=`<span>Observations personnelles</span><span>Page ${i+1} / ${pages.length}</span><span>Mon Ressenti</span>`;
-      });
-    }
+  // v0.2.66 : pagination réelle, exécutée AVANT l'impression.
+  // Les scripts intégrés dans un document DOMParser ne sont pas exécutés lors du transfert.
+  (function(){
+ function paginate(){
+  const old=[...document.querySelectorAll('article.sheet')];
+  if(!old.length)return;
+  const footer=old[0].querySelector('.report-foot');if(!footer)return;
+  const blocks=[];
+  for(const page of old){
+   for(const child of [...page.children]){
+    if(child.classList.contains('report-foot'))continue;
+    if(child.classList.contains('mr-analysis-page')){
+     const intro=document.createElement('section');intro.className='section mr-analysis-page';
+     for(const item of [...child.children]){
+      if(item.classList.contains('mr-analysis-item')){
+       if(intro.children.length){blocks.push(intro.cloneNode(true));intro.replaceChildren()}
+       const wrapper=document.createElement('section');wrapper.className='section mr-analysis-page';wrapper.appendChild(item);blocks.push(wrapper);
+      }else intro.appendChild(item);
+     }
+     if(intro.children.length)blocks.push(intro);
+    }else blocks.push(child);
+   }
   }
+  const parent=old[0].parentNode;
+  const marker=document.createComment('pagination');parent.insertBefore(marker,old[0]);
+  old.forEach(p=>p.remove());
+  let pages=[],page;
+  function addPage(){
+   page=document.createElement('article');page.className='sheet'+(pages.length?' second':'');
+   page.appendChild(footer.cloneNode(true));
+   parent.insertBefore(page,marker);pages.push(page);return page;
+  }
+  function fits(){
+   const foot=page.querySelector('.report-foot');
+   const contents=[...page.children].filter(n=>n!==foot);
+   if(!contents.length)return true;
+   return contents[contents.length-1].getBoundingClientRect().bottom <= foot.getBoundingClientRect().top-12;
+  }
+  function append(block){
+   page.insertBefore(block,page.querySelector('.report-foot'));
+   if(fits())return;
+   block.remove();
+   // Ne jamais déplacer une rubrique déjà remplie ou renverser l'ordre des paragraphes.
+   if(page.children.length>1)addPage();
+   page.insertBefore(block,page.querySelector('.report-foot'));
+   if(fits())return;
+   // Pour un tableau plus haut qu'une page, séparer uniquement à une frontière de ligne.
+   const table=block.querySelector('table');let tbody=table?.querySelector('tbody');
+   if(!tbody||tbody.rows.length<2)return;
+   const allRows=[...tbody.rows].map(row=>row.cloneNode(true));
+   tbody.replaceChildren();
+   let index=0;
+   while(index<allRows.length){
+    const row=allRows[index].cloneNode(true);
+    tbody.appendChild(row);
+    if(fits()){index++;continue;}
+    row.remove();
+    if(tbody.rows.length===0){
+     // Une ligne isolée trop haute doit rester visible, jamais supprimée.
+     tbody.appendChild(allRows[index].cloneNode(true));index++;
+    }
+    if(index<allRows.length){
+     addPage();
+     const continuation=block.cloneNode(true);
+     continuation.querySelector('tbody').replaceChildren();
+     page.insertBefore(continuation,page.querySelector('.report-foot'));
+     block=continuation;
+     tbody=continuation.querySelector('tbody');
+    }
+   }
+  }
+  addPage();
+  for(const block of blocks)append(block);
+  marker.remove();
+  pages.forEach((p,i)=>{const spans=p.querySelectorAll('.report-foot span');if(spans[1])spans[1].textContent='Page '+(i+1)+' / '+pages.length});
+ }
+ paginate();
+  })();
   const now=new Date();
   const pad=n=>String(n).padStart(2,'0');
   const stamp=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
