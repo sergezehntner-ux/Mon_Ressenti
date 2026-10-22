@@ -108,18 +108,28 @@ for(const [key,title,counts] of [
  if(!counts.length)continue;
  const [name,count]=counts[0];
  const matching=pain.filter(r=>field(r,key).includes(name));
- const example=matching[0];
+ const example=matching[Math.floor((matching.length-1)*analysisBlocks.length/4)];
  analysisBlocks.push(`<div class="mr-analysis-item"><b>${esc(title)}</b><p>« ${esc(name)} » figure dans ${count} enregistrement(s) sur ${pain.length} ressentis consignés. Il s’agit de mentions, sans conclusion sur la cause ou la fréquence réelle.</p>${sourceExample(example,key,name)}</div>`);
 }
 if(daily.length){
  const valid=daily.filter(r=>Number.isFinite(r.score));
- if(valid.length){const example=valid[0];analysisBlocks.push(`<div class="mr-analysis-item"><b>Bilans quotidiens</b><p>${valid.length} bilan(s) avec une note ; moyenne ${nfmt(mean(valid.map(r=>r.score)))}/10. Cette note décrit les capacités déclarées, pas l’intensité de la douleur.</p><div class="mr-analysis-example"><b>Exemple du ${fr(day(example.when))} · ${example.score}/10</b>${example.note?.trim()?`<div class="mr-analysis-quote">Remarque originale : « ${esc(example.note)} »</div>`:''}</div></div>`)}
+ if(valid.length){const example=valid[Math.floor(valid.length/2)];analysisBlocks.push(`<div class="mr-analysis-item"><b>Bilans quotidiens</b><p>${valid.length} bilan(s) avec une note ; moyenne ${nfmt(mean(valid.map(r=>r.score)))}/10. Cette note décrit les capacités déclarées, pas l’intensité de la douleur.</p><div class="mr-analysis-example"><b>Exemple du ${fr(day(example.when))} · ${example.score}/10</b>${example.note?.trim()?`<div class="mr-analysis-quote">Remarque originale : « ${esc(example.note)} »</div>`:''}</div></div>`)}
 }
 const analysisSection=doc.createElement('section');analysisSection.className='section mr-analysis';
 analysisSection.innerHTML='<h2>Analyse descriptive détaillée — avec exemples réels</h2><p class="hint">Recalculée à chaque création du rapport, à partir des seuls enregistrements de la période. Les exemples reproduisent les valeurs et remarques saisies, sans embellissement, reformulation ni interprétation. Aucune causalité n’est établie.</p>'+(analysisBlocks.join('')||'<p>Données insuffisantes pour produire des constats illustrés.</p>');
 // Insérer dans la partie détaillée, pas sur la page de garde.
 if(details[0])details[0].insertBefore(analysisSection,details[0].querySelector('.report-foot'));
-const analysisCss=doc.createElement('style');analysisCss.textContent=`.mr-analysis{font-size:10px}.mr-analysis-item{margin:7px 0;break-inside:avoid;page-break-inside:avoid}.mr-analysis-item p{margin:3px 0}.mr-analysis-example{background:#eef7f6;border-left:2px solid #17839a;padding:5px 7px;margin:3px 0;font-size:9px}.mr-analysis-quote{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:3px}@media print{.mr-analysis{font-size:8px}.mr-analysis-item{margin:4px 0}.mr-analysis-example{font-size:8px;padding:3px 5px}}`;
+// Synthèse compacte réservée à la page de garde, sans dupliquer les exemples.
+if(mode==='cover'){
+ const summary=doc.createElement('section');summary.className='section mr-analysis-summary';
+ summary.innerHTML='<h2>Synthèse descriptive</h2><p>'+[
+  features.length?'Caractéristique la plus citée : '+esc(features[0][0])+' ('+features[0][1]+' mentions).':'',
+  aggr.length?'Facteur aggravant le plus cité : '+esc(aggr[0][0])+' ('+aggr[0][1]+' mentions).':'',
+  relief.length?'Facteur soulageant le plus cité : '+esc(relief[0][0])+' ('+relief[0][1]+' mentions).':''
+ ].filter(Boolean).join(' · ')+'</p><p class="hint">Constats descriptifs uniquement ; aucune causalité déduite.</p>';
+ cover.insertBefore(summary,cover.querySelector('.report-foot'));
+}
+const analysisCss=doc.createElement('style');analysisCss.textContent=`.mr-analysis{font-size:10px}.mr-analysis-item{margin:12px 0;padding:7px 0;border-top:1px solid #d6e6e9;break-inside:avoid;page-break-inside:avoid}.mr-analysis-item>b{display:block;margin-bottom:6px;color:#135c70}.mr-analysis-summary{font-size:9px}.mr-analysis-summary p{margin:3px 0}.mr-analysis-item p{margin:3px 0}.mr-analysis-example{background:#eef7f6;border-left:2px solid #17839a;padding:5px 7px;margin:3px 0;font-size:9px}.mr-analysis-quote{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:3px}@media print{.mr-analysis{font-size:8px}.mr-analysis-item{margin:8px 0;padding:5px 0}.mr-analysis-item>b{margin-bottom:4px}.mr-analysis-summary{font-size:8px}.mr-analysis-example{font-size:8px;padding:3px 5px}}`;
 doc.head.appendChild(analysisCss);
 
 const factorContext=r=>[
