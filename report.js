@@ -88,37 +88,58 @@ const doc=new DOMParser().parseFromString(reportHtml,'text/html');
 const sheets=[...doc.querySelectorAll('article.sheet')];
 const cover=sheets[0], details=sheets.slice(1);
 const noteRows=sorted.filter(r=>typeof r.note==='string'&&r.note.trim()).reverse();
-// v0.2.61 : constats reproductibles, illustrés par des enregistrements exacts.
-// Aucune génération externe, aucune modification de données.
-const exampleFor=(records, key, value)=>records.find(r=>field(r,key).includes(value));
-const sourceExample=(r,key,value)=>{
- if(!r)return '<span class="hint">Aucun exemple disponible.</span>';
- const date=fr(day(r.when))+(String(r.when).length>10?' à '+esc(String(r.when).slice(11,16)):'');
- const raw=field(r,key).find(v=>v===value);
- const originalNote=typeof r.note==='string'&&r.note.trim()?`<div class="mr-analysis-quote">Remarque originale : « ${esc(r.note)} »</div>`:'';
- return `<div class="mr-analysis-example"><b>Exemple du ${date}${Number.isFinite(r.score)?' · '+r.score+'/10':''}</b> — ${esc(value)}${raw===undefined?'':' (champ enregistré)'}${originalNote}</div>`;
+// v0.2.62 : six paragraphes descriptifs recalculés localement, avec exemples fidèles.
+const formatExample=(r,key,value)=>{
+ if(!r)return '<p class="mr-analysis-example">Aucun exemple disponible dans les enregistrements de la période.</p>';
+ const when=fr(day(r.when))+(String(r.when).length>10?' à '+esc(String(r.when).slice(11,16)):'');
+ const note=typeof r.note==='string'&&r.note.trim()?`<div class="mr-analysis-quote">Remarque originale : « ${esc(r.note)} »</div>`:'';
+ return `<div class="mr-analysis-example"><b>Exemple du ${when}${Number.isFinite(r.score)?' · '+r.score+'/10':''}</b>${value?' — '+esc(value):''}${note}</div>`;
 };
-const analysisBlocks=[];
-for(const [key,title,counts] of [
- ['features','Caractéristiques fréquemment consignées',features],
- ['aggravating','Facteurs aggravants déclarés',aggr],
- ['relieving','Facteurs soulageants déclarés',relief],
- ['symptoms','Autres symptômes associés',frequencies(pain,'symptoms')]
-]){
- if(!counts.length)continue;
- const [name,count]=counts[0];
- const matching=pain.filter(r=>field(r,key).includes(name));
- const example=matching[Math.floor((matching.length-1)*analysisBlocks.length/4)];
- analysisBlocks.push(`<div class="mr-analysis-item"><b>${esc(title)}</b><p>« ${esc(name)} » figure dans ${count} enregistrement(s) sur ${pain.length} ressentis consignés. Il s’agit de mentions, sans conclusion sur la cause ou la fréquence réelle.</p>${sourceExample(example,key,name)}</div>`);
-}
-if(daily.length){
- const valid=daily.filter(r=>Number.isFinite(r.score));
- if(valid.length){const example=valid[Math.floor(valid.length/2)];analysisBlocks.push(`<div class="mr-analysis-item"><b>Bilans quotidiens</b><p>${valid.length} bilan(s) avec une note ; moyenne ${nfmt(mean(valid.map(r=>r.score)))}/10. Cette note décrit les capacités déclarées, pas l’intensité de la douleur.</p><div class="mr-analysis-example"><b>Exemple du ${fr(day(example.when))} · ${example.score}/10</b>${example.note?.trim()?`<div class="mr-analysis-quote">Remarque originale : « ${esc(example.note)} »</div>`:''}</div></div>`)}
-}
-const analysisSection=doc.createElement('section');analysisSection.className='section mr-analysis';
-analysisSection.innerHTML='<h2>Analyse descriptive détaillée — avec exemples réels</h2><p class="hint">Recalculée à chaque création du rapport, à partir des seuls enregistrements de la période. Les exemples reproduisent les valeurs et remarques saisies, sans embellissement, reformulation ni interprétation. Aucune causalité n’est établie.</p>'+(analysisBlocks.join('')||'<p>Données insuffisantes pour produire des constats illustrés.</p>');
-// Insérer dans la partie détaillée, pas sur la page de garde.
-if(details[0])details[0].insertBefore(analysisSection,details[0].querySelector('.report-foot'));
+const delta=(a,b)=>a===null||b===null?'non calculable':`${b>=a?'une hausse':'une baisse'} de ${nfmt(Math.abs(b-a))} point(s)`;
+const quart=(arr)=>{const valid=arr.filter(r=>Number.isFinite(r.score));const n=Math.max(1,Math.ceil(valid.length/4));return {n:valid.length,a:mean(valid.slice(0,n).map(r=>r.score)),b:mean(valid.slice(-n).map(r=>r.score)),avg:mean(valid.map(r=>r.score))}};
+const painQ=quart(pain),dailyQ=quart(daily);
+const top=(items)=>items.length?`« ${esc(items[0][0])} » (${items[0][1]} mention(s))`:'aucun facteur renseigné';
+const exampleOf=(key,items)=>items.length?pain.find(r=>field(r,key).includes(items[0][0])):null;
+const paragraphs=[];
+paragraphs.push({
+ title:'1. Évolution générale des ressentis',
+ body:painQ.n?`Sur ${pain.length} ressentis consignés entre le ${fr(first)} et le ${fr(last)}, ${painQ.n} comportent une intensité numérique. Leur moyenne est de ${nfmt(painQ.avg)}/10. La moyenne des premiers 25 % d’enregistrements est de ${nfmt(painQ.a)}/10, contre ${nfmt(painQ.b)}/10 pour les derniers 25 % : ${delta(painQ.a,painQ.b)}. Cette comparaison porte sur les observations saisies, pas sur une mesure continue de chaque journée. Les jours sans saisie ne sont pas assimilés à des jours sans douleur.`:'Aucune intensité numérique de ressenti ne permet de calculer une évolution pour cette période.',
+ example:formatExample(pain.find(r=>Number.isFinite(r.score)),'', '')
+});
+paragraphs.push({
+ title:'2. Nature et caractéristiques des douleurs',
+ body:features.length?`Les caractéristiques les plus fréquemment déclarées sont ${features.slice(0,3).map(([s,n])=>`« ${esc(s)} » (${n} mention(s))`).join(', ')}. Ces nombres indiquent combien d’enregistrements contiennent ces termes ; ils ne décrivent ni leur durée ni leur fréquence réelle entre deux saisies. ${locations.length>1?`Les ressentis concernent ${locations.length} localisations déclarées.`:`La localisation renseignée est ${esc(locations[0]||'non précisée')}.`} Une évolution de vocabulaire ne peut être déduite de ces seules fréquences.`:'Aucune caractéristique n’est renseignée pour cette période ; la nature des douleurs ne peut pas être décrite à partir des champs disponibles.',
+ example:formatExample(exampleOf('features',features),'features',features[0]?.[0])
+});
+paragraphs.push({
+ title:'3. Facteurs aggravants et circonstances',
+ body:aggr.length?`Le facteur aggravant le plus souvent déclaré est ${top(aggr)}. ${aggr.length>1?`Il est suivi de ${aggr.slice(1,3).map(([s,n])=>`« ${esc(s)} » (${n})`).join(' et ')}.`:''} Il s’agit de circonstances rapportées dans les enregistrements. Leur présence simultanée avec une douleur ne démontre pas qu’elles l’ont provoquée ou intensifiée ; seules les déclarations personnelles sont prises en compte.`:'Aucun facteur aggravant n’est renseigné dans les enregistrements de cette période. Aucune circonstance aggravante ne peut donc être caractérisée.',
+ example:formatExample(exampleOf('aggravating',aggr),'aggravating',aggr[0]?.[0])
+});
+paragraphs.push({
+ title:'4. Soulagements et interventions',
+ body:relief.length?`Parmi les éléments déclarés comme soulageants, ${top(relief)} apparaît le plus souvent. ${relief.length>1?`Les mentions suivantes comprennent ${relief.slice(1,3).map(([s,n])=>`« ${esc(s)} » (${n})`).join(' et ')}.`:''} Ces mentions correspondent aux ressentis consignés, sans démonstration d’efficacité. Les changements après intervention ne peuvent être affirmés que si un effet a été explicitement enregistré.`:'Aucun facteur soulageant n’est renseigné dans les observations de cette période. Il n’est donc pas possible de comparer les moyens de soulagement à partir de ces champs.',
+ example:formatExample(exampleOf('relieving',relief),'relieving',relief[0]?.[0])
+});
+paragraphs.push({
+ title:'5. Activités et capacités quotidiennes',
+ body:dailyQ.n?`${dailyQ.n} bilans quotidiens comportent une note de capacités, dont la moyenne est de ${nfmt(dailyQ.avg)}/10. La comparaison des premiers et derniers quarts de bilans montre ${delta(dailyQ.a,dailyQ.b)} (${nfmt(dailyQ.a)} puis ${nfmt(dailyQ.b)}/10). Ces notes décrivent les capacités telles qu’elles ont été évaluées, et non l’intensité de la douleur. La coexistence d’une douleur élevée et d’un bon score de capacités ne constitue pas une contradiction.`:'Aucun bilan quotidien chiffré n’est disponible pour cette période ; les capacités quotidiennes ne peuvent pas être comparées.',
+ example:formatExample(daily.find(r=>Number.isFinite(r.score)),'','')
+});
+paragraphs.push({
+ title:'6. Synthèse et points à suivre',
+ body:`Pour cette période de ${nDays} jour(s), ${pain.length} ressentis et ${daily.length} bilans quotidiens ont été consignés. ${painQ.n?`L’intensité moyenne déclarée est de ${nfmt(painQ.avg)}/10.`:''} ${dailyQ.n?`La moyenne des capacités déclarées est de ${nfmt(dailyQ.avg)}/10.`:''} ${features.length?`La caractéristique la plus mentionnée est ${top(features)}.`:''} Ces indicateurs offrent des repères pour comparer les prochains rapports, à condition de tenir compte du nombre de saisies et de la période choisie. Ils ne constituent ni un diagnostic ni une preuve de causalité.`,
+ example:formatExample([...pain,...daily].find(r=>typeof r.note==='string'&&r.note.trim()),'','')
+});
+const analysisCss=doc.createElement('style');
+analysisCss.textContent=`.mr-analysis-page .mr-analysis-intro{font-size:10px;line-height:1.5;color:#59767d}.mr-analysis-item{margin:16px 0 22px;break-inside:avoid;page-break-inside:avoid}.mr-analysis-item h3{font-size:14px;color:#075b82;margin:0 0 9px}.mr-analysis-item p{font-size:12px;line-height:1.55;margin:0 0 9px}.mr-analysis-example{font-size:10px;line-height:1.4;background:#eef7f6;border-left:2px solid #17839a;padding:7px 9px;overflow-wrap:anywhere}.mr-analysis-quote{white-space:pre-wrap;margin-top:5px}@media print{.mr-analysis-item{margin:11px 0 15px}.mr-analysis-item h3{font-size:12px;margin-bottom:6px}.mr-analysis-item p{font-size:10px;line-height:1.4;margin-bottom:6px}.mr-analysis-example{font-size:9px;padding:5px 7px}.mr-analysis-page .mr-analysis-intro{font-size:9px}}`;
+doc.head.appendChild(analysisCss);
+const addAnalysisPage=(parts,index)=>{
+ const sheet=doc.createElement('article');sheet.className='sheet second mr-analysis-page';
+ sheet.innerHTML=`<section class="section"><h2>Analyse descriptive de la période${index===1?'':' — suite'}</h2>${index===1?'<p class="mr-analysis-intro">Texte recalculé automatiquement à chaque rapport à partir des seuls enregistrements de la période. Exemples reproduits sans embellissement ni reformulation. Observations descriptives, sans causalité déduite.</p>':''}${parts.map(p=>`<div class="mr-analysis-item"><h3>${p.title}</h3><p>${p.body}</p>${p.example}</div>`).join('')}</section><div class="report-foot"><span>${esc(displayName)} · ${fr(first)} – ${fr(last)}</span><span></span><span>Observations personnelles · Pas de diagnostic médical</span></div>`;
+ if(details[0])details[0].before(sheet);else cover.after(sheet);
+};
+if(mode!=='cover'){addAnalysisPage(paragraphs.slice(0,3),1);addAnalysisPage(paragraphs.slice(3),2);}
 // Synthèse compacte réservée à la page de garde, sans dupliquer les exemples.
 if(mode==='cover'){
  const summary=doc.createElement('section');summary.className='section mr-analysis-summary';
@@ -129,8 +150,7 @@ if(mode==='cover'){
  ].filter(Boolean).join(' · ')+'</p><p class="hint">Constats descriptifs uniquement ; aucune causalité déduite.</p>';
  cover.insertBefore(summary,cover.querySelector('.report-foot'));
 }
-const analysisCss=doc.createElement('style');analysisCss.textContent=`.mr-analysis{font-size:10px}.mr-analysis-item{margin:12px 0;padding:7px 0;border-top:1px solid #d6e6e9;break-inside:avoid;page-break-inside:avoid}.mr-analysis-item>b{display:block;margin-bottom:6px;color:#135c70}.mr-analysis-summary{font-size:9px}.mr-analysis-summary p{margin:3px 0}.mr-analysis-item p{margin:3px 0}.mr-analysis-example{background:#eef7f6;border-left:2px solid #17839a;padding:5px 7px;margin:3px 0;font-size:9px}.mr-analysis-quote{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:3px}@media print{.mr-analysis{font-size:8px}.mr-analysis-item{margin:8px 0;padding:5px 0}.mr-analysis-item>b{margin-bottom:4px}.mr-analysis-summary{font-size:8px}.mr-analysis-example{font-size:8px;padding:3px 5px}}`;
-doc.head.appendChild(analysisCss);
+
 
 const factorContext=r=>[
   ['Aggravants',field(r,'aggravating')],['Soulageants',field(r,'relieving')],
@@ -146,7 +166,7 @@ if(mode==='cover'){
   // Toutes les remarques sont ajoutées sans limitation. Le navigateur répartit
   // ensuite les blocs selon la place réellement disponible, avant impression.
   addRemarks(cover,noteRows);
-  details.forEach(el=>el.remove());
+  [...doc.querySelectorAll('article.sheet')].filter(el=>el!==cover).forEach(el=>el.remove());
 }else if(mode==='detail'){
   cover.remove();
   const head=cover.querySelector('.report-head').cloneNode(true);
@@ -158,7 +178,7 @@ if(mode==='cover'){
 // Regrouper les petites sections du rapport, sans changer leurs contenus.
 // Pages initiales : A (graphiques), B (facteurs), C (traitements),
 // D (moment/environnement), E (activités). C suit B, E suit D.
-const detailSheets=[...doc.querySelectorAll('article.sheet')].filter(el=>el!==cover);
+const detailSheets=[...doc.querySelectorAll('article.sheet')].filter(el=>el!==cover&&!el.classList.contains('mr-analysis-page'));
 if(detailSheets.length===5){
   for(const [target,source] of [[detailSheets[1],detailSheets[2]],[detailSheets[3],detailSheets[4]]]){
     const foot=target.querySelector('.report-foot');
@@ -187,7 +207,7 @@ style.textContent+=`/* v0.2.56 : remarques lisibles, une seule colonne */
 @media print{.mr-remarks{font-size:9px}.mr-remark-context{font-size:8px}.mr-remark-text{font-size:9px}}
 `;
 doc.body.setAttribute('data-mr-report-mode',mode);
-const toolbar=doc.querySelector('.toolbar span');if(toolbar)toolbar.textContent='Rapport local · v0.2.61 · '+({cover:'Page de garde',detail:'Rapport',all:'Ensemble'}[mode]||'Ensemble');
+const toolbar=doc.querySelector('.toolbar span');if(toolbar)toolbar.textContent='Rapport local · v0.2.62 · '+({cover:'Page de garde',detail:'Rapport',all:'Ensemble'}[mode]||'Ensemble');
 return '<!doctype html>\n'+doc.documentElement.outerHTML;
 }
 window.MonRessentiReport={make};
