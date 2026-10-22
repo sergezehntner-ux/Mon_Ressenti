@@ -88,7 +88,7 @@ const doc=new DOMParser().parseFromString(reportHtml,'text/html');
 const sheets=[...doc.querySelectorAll('article.sheet')];
 const cover=sheets[0], details=sheets.slice(1);
 const noteRows=sorted.filter(r=>typeof r.note==='string'&&r.note.trim()).reverse();
-// v0.2.63 : six paragraphes descriptifs recalculés localement, avec exemples fidèles.
+// v0.2.64 : six paragraphes descriptifs recalculés localement, avec exemples fidèles.
 const formatExample=(r,key,value)=>{
  if(!r)return '<p class="mr-analysis-example">Aucun exemple disponible dans les enregistrements de la période.</p>';
  const when=fr(day(r.when))+(String(r.when).length>10?' à '+esc(String(r.when).slice(11,16)):'');
@@ -208,8 +208,76 @@ style.textContent+=`/* v0.2.56 : remarques lisibles, une seule colonne */
 .mr-remark-page .mr-remark-text{font-size:10px!important}
 @media print{.mr-remarks{font-size:9px}.mr-remark-context{font-size:8px}.mr-remark-text{font-size:9px}}
 `;
+// v0.2.64 : pagination réelle avant impression, sans troncature des analyses.
+const pageStyle=doc.createElement('style');
+pageStyle.textContent=`
+/* Mesures identiques à l'écran et à l'impression pour paginer avant window.print(). */
+.sheet{height:265mm!important;min-height:265mm!important;max-height:265mm!important;padding:4mm 5mm 10mm!important;overflow:hidden!important}
+.report-foot{left:5mm!important;right:5mm!important;bottom:2mm!important}
+.mr-analysis-item{break-inside:avoid;page-break-inside:avoid}
+@media print{.sheet{height:265mm!important;min-height:265mm!important;max-height:265mm!important}}
+`;
+doc.head.appendChild(pageStyle);
+const pagination=doc.createElement('script');
+pagination.textContent=`(function(){
+function paginate(){
+ const original=[...document.querySelectorAll('article.sheet')];
+ const template=original[0]?.querySelector('.report-foot');
+ if(!template)return;
+ function newSheet(after){
+  const page=document.createElement('article');page.className='sheet second';
+  const foot=template.cloneNode(true);page.appendChild(foot);
+  after.after(page);return page;
+ }
+ function exceeds(page){
+  const foot=page.querySelector('.report-foot');
+  const content=[...page.children].filter(x=>x!==foot);
+  if(!content.length)return false;
+  return content[content.length-1].getBoundingClientRect().bottom>foot.getBoundingClientRect().top-10;
+ }
+ // Les paragraphes sont des unités de lecture, mais peuvent changer de page.
+ let pages=[...document.querySelectorAll('article.sheet')];
+ for(let i=0;i<pages.length&&i<60;i++){
+  let page=pages[i],guard=0;
+  while(exceeds(page)&&guard++<60){
+   const nodes=[...page.children].filter(x=>!x.classList.contains('report-foot'));
+   const last=nodes[nodes.length-1];if(!last)break;
+   let next=pages[i+1];
+   if(!next || !next.dataset.mrAuto){next=newSheet(page);next.dataset.mrAuto='1';pages.splice(i+1,0,next)}
+   if(last.classList.contains('mr-analysis-page')){
+    const items=[...last.querySelectorAll(':scope > .mr-analysis-item')];
+    if(items.length){
+     let dest=next.querySelector(':scope > .mr-analysis-page');
+     if(!dest){dest=document.createElement('section');dest.className='section mr-analysis-page';dest.innerHTML='<h2>Analyse descriptive de la période (suite)</h2>';next.insertBefore(dest,next.firstChild)}
+     dest.insertBefore(items[items.length-1],dest.children[1]||null);
+     if(!last.querySelector('.mr-analysis-item'))last.remove();
+     continue;
+    }
+   }
+   // Ne pas fractionner un tableau : déplacer la section entière.
+   if(nodes.length===1&&last.getBoundingClientRect().height>page.querySelector('.report-foot').getBoundingClientRect().top-page.getBoundingClientRect().top-20){
+    // Cas exceptionnel : tableau trop long, découpage à la ligne.
+    const table=last.querySelector('table'),body=table?.querySelector('tbody');
+    if(body&&body.rows.length>1){
+     const clone=last.cloneNode(true),other=clone.querySelector('tbody');
+     const rows=[...body.rows];const half=Math.max(1,Math.floor(rows.length/2));
+     [...other.rows].slice(0,half).forEach(r=>r.remove());
+     rows.slice(half).forEach(r=>r.remove());
+     next.insertBefore(clone,next.firstChild);continue;
+    }
+    break;
+   }
+   next.insertBefore(last,next.firstChild);
+  }
+ }
+ pages=[...document.querySelectorAll('article.sheet')];
+ pages.forEach((page,i)=>{const span=page.querySelector('.report-foot span:nth-child(2)');if(span)span.textContent='Page '+(i+1)+' / '+pages.length});
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',paginate,{once:true});else paginate();
+})();`;
+doc.body.appendChild(pagination);
 doc.body.setAttribute('data-mr-report-mode',mode);
-const toolbar=doc.querySelector('.toolbar span');if(toolbar)toolbar.textContent='Rapport local · v0.2.63 · '+({cover:'Page de garde',detail:'Rapport',all:'Ensemble'}[mode]||'Ensemble');
+const toolbar=doc.querySelector('.toolbar span');if(toolbar)toolbar.textContent='Rapport local · v0.2.64 · '+({cover:'Page de garde',detail:'Rapport',all:'Ensemble'}[mode]||'Ensemble');
 return '<!doctype html>\n'+doc.documentElement.outerHTML;
 }
 window.MonRessentiReport={make};
